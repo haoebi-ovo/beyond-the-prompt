@@ -76,7 +76,7 @@ body.is-reading #labels { opacity: 0; }
 .share.is-open .sphere { pointer-events: none; }
 .line { position: absolute; inset: 0; display: flex; align-items: center; border-radius: 999px; opacity: 0; pointer-events: none; transition: opacity 0.5s var(--ease); }
 .share.is-open.is-ready .line { opacity: 1; pointer-events: auto; }
-.line #moment { flex: 1; min-width: 0; height: 100%; padding: 1rem 0.25rem 0.75rem 1.5rem; border: 0; border-radius: 0; background: transparent; color: var(--ink); font-size: 0.9375rem; font-weight: 300; line-height: 1.5; letter-spacing: 0.01em; outline: none; resize: none; }
+.line #moment { flex: 1; min-width: 0; height: 100%; padding: 1rem 0.25rem 0.75rem 1.5rem; border: 0; border-radius: 0; background: transparent; color: var(--ink); font-size: 0.9375rem; font-weight: 300; line-height: 1.5; letter-spacing: 0.01em; outline: none; resize: none; white-space: pre; overflow-wrap: normal; overflow-y: hidden; }
 .line textarea::placeholder { color: var(--grey); opacity: 1; }
 .line:has(textarea:focus-visible) { outline: 1px solid var(--hair-strong); outline-offset: 3px; }
 .send { flex: none; display: grid; place-items: center; width: 3rem; height: 3rem; margin-right: 0.25rem; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--grey); cursor: pointer; transition: color 0.4s var(--ease), transform 0.4s var(--ease); }
@@ -223,7 +223,7 @@ body.is-reading #labels { opacity: 0; }
   <button type="button" class="sphere" id="sphere" aria-label="Share a moment that inspired you" aria-expanded="false" aria-controls="line"></button>
   <form class="line" id="line" inert novalidate>
     <label class="vh" for="moment">Name the moment that inspired you</label>
-    <textarea id="moment" name="moment" rows="2" maxlength="80" autocomplete="off" enterkeyhint="next" placeholder="Tell us about a moment that inspired you..." tabindex="-1"></textarea>
+    <textarea id="moment" name="moment" rows="1" wrap="off" maxlength="80" autocomplete="off" enterkeyhint="next" placeholder="Tell us about a moment that inspired you..." tabindex="-1"></textarea>
     <button type="button" class="line-tool" id="moment-voice" aria-label="Start voice input" aria-pressed="false" title="Voice input" tabindex="-1">
       <svg class="mic-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5.5 11.5v1a6.5 6.5 0 0 0 13 0v-1M12 19v3m-3 0h6"/></svg>
       <svg class="stop-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>
@@ -1578,6 +1578,13 @@ reduceMQ.addEventListener('change', () => { motion = !reduceMQ.matches; syncMoti
 syncMotion();
 
 /* boot */
+const momentWidthMQ = matchMedia('(max-width: 46rem)');
+function syncMomentWrapping() {
+  input.wrap = momentWidthMQ.matches ? 'soft' : 'off';
+  input.rows = momentWidthMQ.matches ? 2 : 1;
+}
+momentWidthMQ.addEventListener('change', syncMomentWrapping);
+syncMomentWrapping();
 function resize() {
   W = innerWidth; H = innerHeight; DPR = Math.min(devicePixelRatio || 1, 2);
   sizeFx(); gl?.resize(); sampleName(); place([...nodes.values()]);
