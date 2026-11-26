@@ -69,17 +69,16 @@ body.is-reading #labels { opacity: 0; }
 .note { position: fixed; z-index: 3; left: calc(env(safe-area-inset-left, 0px) + var(--gutter)); bottom: calc(env(safe-area-inset-bottom, 0px) + 1.25rem); max-width: 30ch; margin: 0; font-size: 0.75rem; line-height: 1.5; color: var(--grey); }
 
 /* the sphere and its line */
-.share { position: relative; z-index: 5; width: var(--pill-w); height: 3.5rem; margin-top: 0.75rem; pointer-events: auto; }
-.share .sphere { display: none; }
+.share { position: relative; z-index: 5; width: var(--pill-w); height: 3.5rem; margin-top: 0.75rem; pointer-events: none; }
 .sphere { position: absolute; left: 50%; top: 50%; width: 4.5rem; height: 4.5rem; margin: -2.25rem 0 0 -2.25rem; padding: 0; border: 0; border-radius: 50%; background: transparent; cursor: pointer; pointer-events: auto; }
 .sphere:focus-visible { outline-offset: 2px; }
 .share.is-open { pointer-events: auto; }
 .share.is-open .sphere { pointer-events: none; }
 .line { position: absolute; inset: 0; display: flex; align-items: center; border-radius: 999px; opacity: 0; pointer-events: none; transition: opacity 0.5s var(--ease); }
-.share.is-ready .line { opacity: 1; pointer-events: auto; }
-.line #moment { flex: 1; min-width: 0; height: 100%; padding: 0 0.25rem 0 1.5rem; border: 0; background: transparent; color: var(--ink); font-size: 0.9375rem; font-weight: 300; letter-spacing: 0.01em; outline: none; }
-.line input::placeholder { color: var(--grey); opacity: 1; }
-.line:has(input:focus-visible) { outline: 1px solid var(--hair-strong); outline-offset: 3px; }
+.share.is-open.is-ready .line { opacity: 1; pointer-events: auto; }
+.line #moment { flex: 1; min-width: 0; height: 100%; padding: 1rem 0.25rem 0.75rem 1.5rem; border: 0; border-radius: 0; background: transparent; color: var(--ink); font-size: 0.9375rem; font-weight: 300; line-height: 1.5; letter-spacing: 0.01em; outline: none; resize: none; white-space: pre; overflow-wrap: normal; overflow-y: hidden; }
+.line textarea::placeholder { color: var(--grey); opacity: 1; }
+.line:has(textarea:focus-visible) { outline: 1px solid var(--hair-strong); outline-offset: 3px; }
 .send { flex: none; display: grid; place-items: center; width: 3rem; height: 3rem; margin-right: 0.25rem; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--grey); cursor: pointer; transition: color 0.4s var(--ease), transform 0.4s var(--ease); }
 .send:hover { color: var(--ink); transform: translateX(2px); }
 .send:active { transform: translateX(4px); }
@@ -188,7 +187,12 @@ body.is-reading #labels { opacity: 0; }
   .label { font-size: 0.9375rem; max-width: 10em; }
   .note { left: 1rem; right: 1rem; bottom: calc(env(safe-area-inset-bottom, 0px) + 0.6rem); max-width: none; font-size: 0.75rem; text-align: center; text-wrap: balance; }
   #field { opacity: 0.5; }
-  .line #moment { padding-left: 1rem; font-size: 1rem; }
+  .share { height: 7.5rem; }
+  .line { display: grid; grid-template-columns: minmax(0, 1fr) repeat(3, 2.75rem); grid-template-rows: minmax(0, 1fr) 2.75rem; padding: 0.75rem 1.5rem 0.5rem; }
+  .line #moment { grid-column: 1 / -1; width: 100%; padding: 0; font-size: 1rem; line-height: 1.4; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .line #moment-voice { grid-column: 2; }
+  .line #moment-photo { grid-column: 3; }
+  .line #send { grid-column: 4; }
   .line .send { width: 2.75rem; margin-right: 0.1rem; }
   .chrome { gap: 1.25rem; }
 }
@@ -214,20 +218,20 @@ body.is-reading #labels { opacity: 0; }
   <div class="home__inner">
     <h1 class="name" id="name" aria-label="Beyond the Prompt"></h1>
     <p class="tagline">Every idea has a story behind it.</p>
-<div class="share is-open is-ready" id="share">
+<div class="share" id="share">
   <p class="status" id="status" role="status" aria-live="polite"></p>
-  <button type="button" class="sphere" id="sphere" aria-label="Share a moment that inspired you" aria-expanded="true" aria-controls="line"></button>
-  <form class="line" id="line" novalidate>
+  <button type="button" class="sphere" id="sphere" aria-label="Share a moment that inspired you" aria-expanded="false" aria-controls="line"></button>
+  <form class="line" id="line" inert novalidate>
     <label class="vh" for="moment">Name the moment that inspired you</label>
-    <input id="moment" name="moment" type="text" maxlength="80" autocomplete="off" placeholder="Tell us about a moment that inspired you..." tabindex="0">
-    <button type="button" class="line-tool" id="moment-voice" aria-label="Start voice input" aria-pressed="false" title="Voice input" tabindex="0">
+    <textarea id="moment" name="moment" rows="1" wrap="off" maxlength="80" autocomplete="off" enterkeyhint="next" placeholder="Tell us about a moment that inspired you..." tabindex="-1"></textarea>
+    <button type="button" class="line-tool" id="moment-voice" aria-label="Start voice input" aria-pressed="false" title="Voice input" tabindex="-1">
       <svg class="mic-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5.5 11.5v1a6.5 6.5 0 0 0 13 0v-1M12 19v3m-3 0h6"/></svg>
       <svg class="stop-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>
     </button>
-    <button type="button" class="line-tool" id="moment-photo" aria-label="Take or attach a photo" aria-haspopup="dialog" aria-controls="photo-dialog" title="Take or attach a photo" tabindex="0">
+    <button type="button" class="line-tool" id="moment-photo" aria-label="Take or attach a photo" aria-haspopup="dialog" aria-controls="photo-dialog" title="Take or attach a photo" tabindex="-1">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h4l2-3h6l2 3h4v13H3z"/><circle cx="12" cy="13" r="3.5"/></svg>
     </button>
-    <button type="submit" class="send" id="send" aria-label="Continue" tabindex="0"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h15M14 6.5 19.5 12 14 17.5"/></svg></button>
+    <button type="submit" class="send" id="send" aria-label="Continue" tabindex="-1"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h15M14 6.5 19.5 12 14 17.5"/></svg></button>
   </form>
   <div class="line-photos" id="line-photos" role="group" aria-label="Attached photos" hidden></div>
 </div>
@@ -589,12 +593,18 @@ function reserved() {
 const overlap = (a, b) => Math.max(0, Math.min(a.r, b.r) - Math.max(a.l, b.l)) * Math.max(0, Math.min(a.b, b.b) - Math.max(a.t, b.t));
 // Titles never render below 13px; far depth is carried by blur and dimming instead.
 let labelPx = 18;
-const scaleFor = (k) => Math.max(k, 13 / labelPx);
+// Preserve other existing labels; keep this example and future stories modest.
+const labelSizeLimitSince = Date.parse('2026-11-26T23:28:47Z');
+const scaleFor = (k, story, emphasis = 1) => {
+  const scale = Math.max(k, 13 / labelPx) * emphasis;
+  const limited = story && (story.id === 'ex-conversation' || (!story.example && story.createdAt >= labelSizeLimitSince));
+  return limited ? Math.min(scale, (W <= 736 ? 14 : 16) / labelPx) : scale;
+};
 const blurFor = (z) => clamp((-z - 1.2) / 3, 0, 1) * 0.5;
 function rectAt(n, p) {
   const s = project(p[0], p[1], p[2], REST);
   if (!s) return null;
-  const k = scaleFor(s.k);
+  const k = scaleFor(s.k, n.s);
   const w = n.b.offsetWidth * k, h = n.b.offsetHeight * k, pad = 20;
   return { l: s.x - w / 2 - pad, r: s.x + w / 2 + pad, t: s.y - h / 2 - pad, b: s.y + h / 2 + pad };
 }
@@ -701,7 +711,7 @@ for (let i = 0; i < SPHERE_N; i++) {
   const shell = 0.82 + Math.random() * 0.3; // a soft, slightly thick surface rather than a hard rim
   sphereP.push({ ux: ux * shell, uy: uy * shell, uz: uz * shell, s: Math.random(), n: (Math.random() - 0.5) * 2.4, delay: (ux + 1) / 2, sw: (Math.random() - 0.5) * 2, sz: Math.random() < 0.06 ? 1.4 : 0.9, jit: Math.random() * 6.283 });
 }
-const sphere = { m: 1, target: 1, pulse: 0, swell: 0, cx: 0, cy: 0, pw: 0, ph: 0 };
+const sphere = { m: 0, target: 0, pulse: 0, swell: 0, cx: 0, cy: 0, pw: 0, ph: 0 };
 const emit = [];
 
 function pillPoint(u, w, h) {
@@ -834,17 +844,20 @@ let hoveringShare = false;
 function openLine(focus) {
   sphere.target = 1;
   shareEl.classList.add('is-open');
+  lineForm.inert = false;
+  sphereBtn.tabIndex = -1;
   sphereBtn.setAttribute('aria-expanded', 'true');
   lineControls.forEach((control) => { control.tabIndex = 0; });
   if (focus) setTimeout(() => input.focus({ preventScroll: true }), motion ? 380 : 0);
 }
 function closeLine() {
   cancelVoice();
-  // Keep the invitation visible below the title after blur, Escape or submission.
-  sphere.target = 1;
-  shareEl.classList.add('is-open');
-  sphereBtn.setAttribute('aria-expanded', 'true');
-  lineControls.forEach((control) => { control.tabIndex = 0; });
+  sphere.target = 0;
+  shareEl.classList.remove('is-open');
+  lineForm.inert = true;
+  sphereBtn.tabIndex = 0;
+  sphereBtn.setAttribute('aria-expanded', 'false');
+  lineControls.forEach((control) => { control.tabIndex = -1; });
 }
 function maybeClose() {
   if (!input.value.trim() && !pending.length && !photoDialog.open && !attachingPhotos && !recognition
@@ -854,7 +867,6 @@ sphereBtn.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse
 shareEl.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') { hoveringShare = false; setTimeout(maybeClose, 250); } });
 shareEl.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse' && shareEl.classList.contains('is-open')) hoveringShare = true; });
 sphereBtn.addEventListener('click', () => openLine(true));
-sphereBtn.addEventListener('focus', () => openLine(true));
 shareEl.addEventListener('focusout', () => setTimeout(maybeClose, 150));
 shareEl.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
@@ -862,12 +874,19 @@ shareEl.addEventListener('keydown', (e) => {
   document.activeElement.blur();
   closeLine();
 });
+// A textarea lets the full invitation wrap on phones; Enter still continues.
+input.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.isComposing) {
+    e.preventDefault();
+    lineForm.requestSubmit();
+  }
+});
 lineForm.addEventListener('submit', (e) => {
   e.preventDefault();
   if (recognition) { stopVoice(); return; }
   if (attachingPhotos) { announce('Wait for the photos to finish attaching.'); return; }
   if (savingMoment || composeView.open) return;
-  const v = input.value.trim();
+  const v = input.value.trim().replace(/\s*\n\s*/g, ' ');
   if (!store.canWrite) { announce(store.why); return; }
   if (!v) { announce('Give your moment a title.'); input.focus(); return; }
   openCompose(v);
@@ -1049,7 +1068,7 @@ async function initGL() {
         if (n) {
           c.material.uniforms.uGather.value = n.gather; c.material.uniforms.uFocusMine.value = n === focusNode ? 1 : 0;
           if (n.anchor) {
-            const dz = CAM_Z - n.anchor[2], f = H / 2 / TAN, ks = scaleFor(CAM_Z / dz);
+            const dz = CAM_Z - n.anchor[2], f = H / 2 / TAN, ks = scaleFor(CAM_Z / dz, n.s);
             c.material.uniforms.uClear.value.set(((n.w0 || 0) * ks / 2 + 8) * dz / f, ((n.h0 || 0) * ks / 2 + 5) * dz / f);
           }
         }
@@ -1092,9 +1111,9 @@ function tick(now) {
     n.gather += ((n.hover ? 1 : 0) - n.gather) * (1 - Math.exp(-dt * (motion ? 3 : 60)));
     let o = (0.62 + 0.38 * clamp((z + 4.2) / 5.6, 0, 1)) * be;
     o = lerp(o, 1, n.gather * 0.8);
-    n.li.style.transform = `translate3d(${s.x.toFixed(1)}px, ${s.y.toFixed(1)}px, 0) translate(-50%, -50%) scale(${(scaleFor(s.k) * (1 + n.gather * 0.04)).toFixed(3)})`;
+    n.li.style.transform = `translate3d(${s.x.toFixed(1)}px, ${s.y.toFixed(1)}px, 0) translate(-50%, -50%) scale(${scaleFor(s.k, n.s, 1 + n.gather * 0.04).toFixed(3)})`;
     n.li.style.opacity = o.toFixed(3);
-    const bl = scaleFor(s.k) > s.k + 0.001 ? 0 : blurFor(z) * (1 - n.gather); // no blur once a title sits at the size floor
+    const bl = scaleFor(s.k, n.s) > s.k + 0.001 ? 0 : blurFor(z) * (1 - n.gather); // no blur once a title sits at the size floor
     n.li.style.filter = bl > 0.05 ? `blur(${bl.toFixed(2)}px)` : '';
     n.li.style.zIndex = String(100 + Math.round(z * 10));
   }
@@ -1566,6 +1585,13 @@ reduceMQ.addEventListener('change', () => { motion = !reduceMQ.matches; syncMoti
 syncMotion();
 
 /* boot */
+const momentWidthMQ = matchMedia('(max-width: 46rem)');
+function syncMomentWrapping() {
+  input.wrap = momentWidthMQ.matches ? 'soft' : 'off';
+  input.rows = momentWidthMQ.matches ? 2 : 1;
+}
+momentWidthMQ.addEventListener('change', syncMomentWrapping);
+syncMomentWrapping();
 function resize() {
   W = innerWidth; H = innerHeight; DPR = Math.min(devicePixelRatio || 1, 2);
   sizeFx(); gl?.resize(); sampleName(); place([...nodes.values()]);
