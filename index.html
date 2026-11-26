@@ -593,12 +593,18 @@ function reserved() {
 const overlap = (a, b) => Math.max(0, Math.min(a.r, b.r) - Math.max(a.l, b.l)) * Math.max(0, Math.min(a.b, b.b) - Math.max(a.t, b.t));
 // Titles never render below 13px; far depth is carried by blur and dimming instead.
 let labelPx = 18;
-const scaleFor = (k) => Math.max(k, 13 / labelPx);
+// Preserve other existing labels; keep this example and future stories modest.
+const labelSizeLimitSince = Date.parse('2026-11-26T23:28:47Z');
+const scaleFor = (k, story, emphasis = 1) => {
+  const scale = Math.max(k, 13 / labelPx) * emphasis;
+  const limited = story && (story.id === 'ex-conversation' || (!story.example && story.createdAt >= labelSizeLimitSince));
+  return limited ? Math.min(scale, (W <= 736 ? 14 : 16) / labelPx) : scale;
+};
 const blurFor = (z) => clamp((-z - 1.2) / 3, 0, 1) * 0.5;
 function rectAt(n, p) {
   const s = project(p[0], p[1], p[2], REST);
   if (!s) return null;
-  const k = scaleFor(s.k);
+  const k = scaleFor(s.k, n.s);
   const w = n.b.offsetWidth * k, h = n.b.offsetHeight * k, pad = 20;
   return { l: s.x - w / 2 - pad, r: s.x + w / 2 + pad, t: s.y - h / 2 - pad, b: s.y + h / 2 + pad };
 }
@@ -857,6 +863,7 @@ function maybeClose() {
   if (!input.value.trim() && !pending.length && !photoDialog.open && !attachingPhotos && !recognition
       && !shareEl.contains(document.activeElement) && !hoveringShare) closeLine();
 }
+sphereBtn.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse') { hoveringShare = true; openLine(false); } });
 shareEl.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') { hoveringShare = false; setTimeout(maybeClose, 250); } });
 shareEl.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse' && shareEl.classList.contains('is-open')) hoveringShare = true; });
 sphereBtn.addEventListener('click', () => openLine(true));
@@ -1061,7 +1068,7 @@ async function initGL() {
         if (n) {
           c.material.uniforms.uGather.value = n.gather; c.material.uniforms.uFocusMine.value = n === focusNode ? 1 : 0;
           if (n.anchor) {
-            const dz = CAM_Z - n.anchor[2], f = H / 2 / TAN, ks = scaleFor(CAM_Z / dz);
+            const dz = CAM_Z - n.anchor[2], f = H / 2 / TAN, ks = scaleFor(CAM_Z / dz, n.s);
             c.material.uniforms.uClear.value.set(((n.w0 || 0) * ks / 2 + 8) * dz / f, ((n.h0 || 0) * ks / 2 + 5) * dz / f);
           }
         }
@@ -1104,9 +1111,9 @@ function tick(now) {
     n.gather += ((n.hover ? 1 : 0) - n.gather) * (1 - Math.exp(-dt * (motion ? 3 : 60)));
     let o = (0.62 + 0.38 * clamp((z + 4.2) / 5.6, 0, 1)) * be;
     o = lerp(o, 1, n.gather * 0.8);
-    n.li.style.transform = `translate3d(${s.x.toFixed(1)}px, ${s.y.toFixed(1)}px, 0) translate(-50%, -50%) scale(${(scaleFor(s.k) * (1 + n.gather * 0.04)).toFixed(3)})`;
+    n.li.style.transform = `translate3d(${s.x.toFixed(1)}px, ${s.y.toFixed(1)}px, 0) translate(-50%, -50%) scale(${scaleFor(s.k, n.s, 1 + n.gather * 0.04).toFixed(3)})`;
     n.li.style.opacity = o.toFixed(3);
-    const bl = scaleFor(s.k) > s.k + 0.001 ? 0 : blurFor(z) * (1 - n.gather); // no blur once a title sits at the size floor
+    const bl = scaleFor(s.k, n.s) > s.k + 0.001 ? 0 : blurFor(z) * (1 - n.gather); // no blur once a title sits at the size floor
     n.li.style.filter = bl > 0.05 ? `blur(${bl.toFixed(2)}px)` : '';
     n.li.style.zIndex = String(100 + Math.round(z * 10));
   }
