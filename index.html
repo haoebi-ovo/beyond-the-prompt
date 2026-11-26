@@ -1,0 +1,1458 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Beyond the Prompt</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Jost:wght@200;300;400&display=swap" rel="stylesheet">
+<style>
+:root {
+  color-scheme: dark;
+  /* One dark field; light comes only from particles. */
+  --ground: oklch(7.5% 0.004 265);
+  --ground-veil: oklch(7% 0.004 265 / 0.8);
+  --ink: oklch(96% 0.003 265);
+  --ink-soft: oklch(80% 0.004 265);
+  --grey: oklch(70% 0.005 265);
+  --grey-dim: oklch(52% 0.005 265);
+  --hair: oklch(100% 0 0 / 0.14);
+  --hair-strong: oklch(100% 0 0 / 0.3);
+  --glow: oklch(100% 0 0 / 0.07);
+  --font: "Jost", "Futura", "Century Gothic", ui-sans-serif, sans-serif;
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --pill-w: min(34rem, calc(100vw - 2.5rem));
+  --gutter: clamp(1rem, 3vw, 2rem);
+}
+html, body { height: 100%; }
+[hidden]:not([hidden="until-found"]) { display: none !important; }
+body { margin: 0; overflow: hidden; background: var(--ground); color: var(--ink); font: 300 1rem/1.6 var(--font); -webkit-font-smoothing: antialiased; caret-color: var(--ink); }
+::selection { background: oklch(100% 0 0 / 0.22); color: var(--ink); }
+* { box-sizing: border-box; }
+button, input, textarea, select { font: inherit; color: inherit; }
+:focus-visible { outline: 1px solid var(--ink); outline-offset: 4px; }
+.vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+/* layers */
+.layer { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+#field { z-index: 0; }
+#labels { z-index: 2; margin: 0; padding: 0; list-style: none; }
+#fx { z-index: 4; }
+body.is-reading .home, body.is-reading .share, body.is-reading .note, body.is-reading .chrome { opacity: 0; pointer-events: none; }
+.home, .share, .note, .chrome, #labels { transition: opacity 0.8s var(--ease); }
+body.is-reading #labels { opacity: 0; }
+
+/* the name */
+.home { position: fixed; inset: 0; z-index: 3; display: grid; place-items: center; pointer-events: none; }
+.home__inner { display: grid; justify-items: center; gap: 1.1rem; transform: translateY(-3vh); text-align: center; padding-inline: var(--gutter); }
+.name { margin: 0; font-weight: 300; font-size: clamp(0.8125rem, 0.4vw + 0.7rem, 1rem); letter-spacing: 0.52em; text-transform: uppercase; margin-right: -0.52em; line-height: 1; white-space: nowrap; }
+.name .ch { display: inline-block; transition: opacity 0.5s var(--ease); }
+.tagline { margin: 0; font-size: 0.875rem; letter-spacing: 0.02em; color: var(--grey); }
+
+/* floating story titles */
+.label-item { position: absolute; left: 0; top: 0; will-change: transform, opacity; }
+.label { display: block; max-width: 13em; padding: 0.4em 0.6em; border: 0; background: none; color: var(--ink-soft); font-weight: 300; font-size: 1.125rem; line-height: 1.3; letter-spacing: 0.01em; text-align: center; text-wrap: balance; cursor: pointer; pointer-events: auto; transition: color 0.6s var(--ease); }
+.label:hover, .label:focus-visible { color: var(--ink); }
+.label:focus-visible { outline-offset: 2px; }
+.label.is-new { color: var(--ink); }
+
+/* chrome */
+.chrome { position: fixed; z-index: 5; top: calc(env(safe-area-inset-top, 0px) + 1.25rem); right: calc(env(safe-area-inset-right, 0px) + var(--gutter)); display: flex; gap: 1.75rem; }
+.text-btn { display: inline-flex; align-items: center; gap: 0.5rem; min-height: 2.75rem; padding: 0; border: 0; background: none; color: var(--grey); font-size: 0.8125rem; letter-spacing: 0.04em; cursor: pointer; white-space: nowrap; transition: color 0.4s var(--ease); }
+.text-btn:hover { color: var(--ink); }
+.text-btn:active { color: var(--ink-soft); }
+.text-btn:disabled { color: var(--grey-dim); cursor: not-allowed; }
+.text-btn svg { width: 1rem; height: 1rem; stroke: currentColor; fill: none; stroke-width: 1; }
+.count { color: var(--grey); font-variant-numeric: tabular-nums; }
+
+.note { position: fixed; z-index: 3; left: calc(env(safe-area-inset-left, 0px) + var(--gutter)); bottom: calc(env(safe-area-inset-bottom, 0px) + 1.25rem); max-width: 30ch; margin: 0; font-size: 0.75rem; line-height: 1.5; color: var(--grey); }
+
+/* the sphere and its line */
+.share { position: fixed; z-index: 5; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 3.5rem); width: var(--pill-w); height: 3.5rem; transform: translateX(-50%); pointer-events: none; }
+.sphere { position: absolute; left: 50%; top: 50%; width: 4.5rem; height: 4.5rem; margin: -2.25rem 0 0 -2.25rem; padding: 0; border: 0; border-radius: 50%; background: transparent; cursor: pointer; pointer-events: auto; }
+.sphere:focus-visible { outline-offset: 2px; }
+.share.is-open { pointer-events: auto; }
+.share.is-open .sphere { pointer-events: none; }
+.line { position: absolute; inset: 0; display: flex; align-items: center; border-radius: 999px; opacity: 0; pointer-events: none; transition: opacity 0.5s var(--ease); }
+.share.is-ready .line { opacity: 1; pointer-events: auto; }
+.line #moment { flex: 1; min-width: 0; height: 100%; padding: 0 0.25rem 0 1.5rem; border: 0; background: transparent; color: var(--ink); font-size: 0.9375rem; font-weight: 300; letter-spacing: 0.01em; outline: none; }
+.line input::placeholder { color: var(--grey); opacity: 1; }
+.line:has(input:focus-visible) { outline: 1px solid var(--hair-strong); outline-offset: 3px; }
+.send { flex: none; display: grid; place-items: center; width: 3rem; height: 3rem; margin-right: 0.25rem; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--grey); cursor: pointer; transition: color 0.4s var(--ease), transform 0.4s var(--ease); }
+.send:hover { color: var(--ink); transform: translateX(2px); }
+.send:active { transform: translateX(4px); }
+.send:disabled { color: var(--grey-dim); cursor: not-allowed; transform: none; }
+.send svg { width: 1.25rem; height: 1.25rem; stroke: currentColor; fill: none; stroke-width: 1; }
+.status { position: absolute; left: 50%; bottom: calc(100% + 1.1rem); width: max-content; max-width: min(30rem, calc(100vw - 2rem)); margin: 0; transform: translateX(-50%); font-size: 0.8125rem; color: var(--ink-soft); text-align: center; }
+.line-tool { flex: none; display: grid; place-items: center; width: 2.75rem; height: 2.75rem; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--grey); cursor: pointer; }
+.line-tool:hover, .line-tool:focus-visible { color: var(--ink); background: var(--glow); }
+.line-tool[aria-pressed="true"] { color: #ffad9e; background: var(--glow); }
+.line-tool svg { width: 1.2rem; height: 1.2rem; stroke: currentColor; fill: none; stroke-width: 1.25; stroke-linecap: round; stroke-linejoin: round; }
+.line-tool .stop-icon, .line-tool[aria-pressed="true"] .mic-icon { display: none; }
+.line-tool[aria-pressed="true"] .stop-icon { display: block; }
+.line-photos { position: absolute; right: 0.5rem; bottom: calc(100% + 0.75rem); display: flex; align-items: center; gap: 0.5rem; visibility: hidden; }
+.line-photos[hidden] { display: none; }
+.share.is-open.is-ready .line-photos { visibility: visible; }
+.share.has-photos .status { bottom: calc(100% + 4.4rem); }
+.line-photo { position: relative; width: 2.75rem; height: 2.75rem; }
+.line-photo img { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: 0.4rem; filter: grayscale(1); }
+.line-photo button { position: absolute; top: -0.4rem; right: -0.3rem; display: grid; place-items: center; width: 1.65rem; height: 1.65rem; padding: 0; border: 1px solid var(--hair-strong); border-radius: 50%; background: var(--ground); color: var(--ink); cursor: pointer; }
+.line-photo button svg { width: 0.75rem; height: 0.75rem; stroke: currentColor; fill: none; stroke-width: 1.5; }
+.photo-dialog { width: min(29rem, calc(100vw - 2rem)); max-height: calc(100dvh - 2rem); padding: 1.25rem; border: 1px solid var(--hair-strong); border-radius: 1rem; background: var(--ground); color: var(--ink); }
+.photo-dialog::backdrop { background: rgb(0 0 0 / 0.65); }
+.photo-dialog h2 { margin: 0 0 0.8rem; font-size: 1.25rem; font-weight: 400; }
+.photo-dialog video { display: block; width: 100%; max-height: 45dvh; border-radius: 0.4rem; object-fit: contain; background: #0e0e10; }
+.photo-dialog [hidden] { display: none; }
+.photo-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.photo-actions button { min-height: 2.75rem; padding: 0.5rem 0.85rem; border: 1px solid var(--hair-strong); border-radius: 999px; background: transparent; color: var(--ink); font: inherit; cursor: pointer; }
+.photo-actions button:hover { background: var(--glow); }
+.photo-actions button:disabled { opacity: 0.5; cursor: wait; }
+.photo-status { color: var(--ink-soft); font-size: 0.875rem; }
+
+/* full-screen views */
+.view { width: 100%; max-width: none; height: 100%; max-height: none; margin: 0; padding: 0; border: 0; background: var(--ground-veil); color: var(--ink); overflow-y: auto; overscroll-behavior: contain; scrollbar-color: var(--grey-dim) transparent; }
+.view::backdrop { background: transparent; }
+.view[open] { animation: view-in 0.9s var(--ease) both; }
+.view.is-closing { animation: view-out 0.45s var(--ease) both; }
+@keyframes view-in { from { opacity: 0; transform: translateY(1rem); filter: blur(6px); } to { opacity: 1; transform: none; filter: none; } }
+@keyframes view-out { to { opacity: 0; filter: blur(4px); } }
+.view__inner { width: 100%; max-width: 68rem; margin: 0 auto; padding: calc(env(safe-area-inset-top, 0px) + 1.25rem) var(--gutter) 6rem; }
+.view__bar { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+.view__bar-right { display: flex; gap: 1.5rem; }
+
+.story__head { margin-top: clamp(3rem, 12vh, 7rem); max-width: 44rem; }
+.story__title:focus, .archive__title:focus { outline: none; }
+.story__title { margin: 0; font-weight: 200; font-size: clamp(2rem, 3.4vw + 0.75rem, 3.5rem); line-height: 1.08; letter-spacing: -0.012em; text-wrap: balance; overflow-wrap: break-word; }
+.story__meta { margin: 1.5rem 0 0; color: var(--grey); font-size: 0.9375rem; line-height: 1.6; }
+.story__meta b { font-weight: 400; color: var(--ink-soft); }
+.story__answers { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3rem 4rem; margin-top: 4.5rem; padding-top: 2.5rem; border-top: 1px solid var(--hair); }
+.answer h3 { margin: 0; font-weight: 400; font-size: 0.8125rem; letter-spacing: 0.02em; color: var(--grey); }
+.answer p { margin: 0.75rem 0 0; max-width: 34em; font-size: 1.0625rem; line-height: 1.65; color: var(--ink); white-space: pre-line; overflow-wrap: break-word; }
+.story__media { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr)); gap: 1.5rem; margin-top: 4rem; }
+.story__media:empty { display: none; }
+.story__media figure { margin: 0; }
+.story__media img { display: block; width: 100%; aspect-ratio: 4 / 5; object-fit: cover; background: oklch(14% 0.004 265); filter: grayscale(1) contrast(1.04); }
+.story__media figcaption { margin-top: 0.6rem; font-size: 0.8125rem; color: var(--grey); }
+.story__foot { margin-top: 3.5rem; }
+
+.archive__title { margin: clamp(3rem, 10vh, 6rem) 0 0; font-weight: 200; font-size: clamp(1.75rem, 2.5vw + 0.75rem, 2.75rem); letter-spacing: -0.01em; }
+.archive__list { margin: 2.5rem 0 0; padding: 0; list-style: none; border-top: 1px solid var(--hair); }
+.archive__list li { border-bottom: 1px solid var(--hair); }
+.archive__item { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 0.25rem 2rem; width: 100%; padding: 1.25rem 0; border: 0; background: none; text-align: left; cursor: pointer; }
+.archive__item span:first-child { font-size: clamp(1.125rem, 0.6vw + 1rem, 1.375rem); color: var(--ink-soft); transition: color 0.4s var(--ease); }
+.archive__item span:last-child { font-size: 0.8125rem; color: var(--grey); }
+.archive__item:hover span:first-child { color: var(--ink); }
+
+/* composing a story */
+.compose__head { margin-top: clamp(2.5rem, 9vh, 5rem); max-width: 40rem; }
+.compose__intro { margin: 1rem 0 0; color: var(--grey); max-width: 36em; }
+.compose__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2.25rem 3rem; margin-top: 3.5rem; }
+.f { display: grid; gap: 0.5rem; align-content: start; min-width: 0; }
+.f--wide { grid-column: 1 / -1; }
+.f label, .f .f__label { font-size: 0.8125rem; letter-spacing: 0.02em; color: var(--grey); }
+.f input[type="text"], .f textarea, .f select { width: 100%; padding: 0.6rem 0; border: 0; border-bottom: 1px solid var(--hair-strong); border-radius: 0; background: transparent; color: var(--ink); font-size: 1.0625rem; font-weight: 300; line-height: 1.55; outline: none; resize: vertical; transition: border-color 0.4s var(--ease); }
+.f textarea { min-height: 4.5rem; }
+.f #c-title { font-size: clamp(1.375rem, 1.2vw + 1rem, 1.875rem); font-weight: 200; }
+.f input[type="text"]:hover, .f textarea:hover { border-color: var(--grey); }
+.f input[type="text"]:focus-visible, .f textarea:focus-visible, .f select:focus-visible { border-color: var(--ink); outline: none; }
+.f input::placeholder, .f textarea::placeholder { color: var(--grey); opacity: 1; }
+.f [aria-invalid="true"] { border-color: var(--ink) !important; }
+.f__err { min-height: 1.3em; margin: 0; font-size: 0.8125rem; color: var(--ink); }
+.uploads { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem 1.5rem; }
+.uploads input[type="file"] { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.uploads:has(input:focus-visible) .text-btn { outline: 1px solid var(--ink); outline-offset: 4px; }
+.thumbs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem; margin: 0.75rem 0 0; padding: 0; list-style: none; }
+.thumbs:empty { display: none; }
+.thumb { display: grid; gap: 0.4rem; min-width: 0; }
+.thumb img { width: 100%; aspect-ratio: 1; object-fit: cover; filter: grayscale(1); }
+.thumb select { padding: 0.3rem 0; font-size: 0.875rem; background: var(--ground); }
+.consent { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0.25rem 0.85rem; align-items: start; }
+.consent input { width: 1.1rem; height: 1.1rem; margin: 0.2rem 0 0; accent-color: var(--ink); cursor: pointer; }
+.consent label { font-size: 0.9375rem; color: var(--ink-soft); cursor: pointer; }
+.consent .f__err { grid-column: 2; }
+.compose__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem 2.5rem; margin-top: 3rem; padding-top: 2rem; border-top: 1px solid var(--hair); }
+.release { display: inline-flex; align-items: center; gap: 0.75rem; min-height: 2.75rem; padding: 0; border: 0; border-bottom: 1px solid var(--hair-strong); border-radius: 0; background: none; color: var(--ink); font-size: 1rem; letter-spacing: 0.04em; cursor: pointer; white-space: nowrap; transition: border-color 0.4s var(--ease), color 0.4s var(--ease); }
+.release:hover { border-color: var(--ink); }
+.release:hover svg { transform: translateX(3px); }
+.release svg { transition: transform 0.4s var(--ease); }
+.release:active { border-color: var(--ink-soft); }
+.release:disabled, .release[aria-busy="true"] { border-color: var(--hair); color: var(--grey); cursor: progress; }
+.release svg { width: 1.1rem; height: 1.1rem; stroke: currentColor; fill: none; stroke-width: 1; }
+.compose__status { margin: 0; min-height: 1.4em; font-size: 0.875rem; color: var(--ink-soft); }
+
+@media (max-width: 46rem) {
+  .story__answers, .compose__grid { grid-template-columns: minmax(0, 1fr); gap: 2.25rem; }
+  .thumbs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .label { font-size: 0.9375rem; max-width: 10em; }
+  .note { left: 1rem; right: 1rem; bottom: calc(env(safe-area-inset-bottom, 0px) + 0.6rem); max-width: none; font-size: 0.75rem; text-align: center; text-wrap: balance; }
+  .share { bottom: calc(env(safe-area-inset-bottom, 0px) + 3.25rem); }
+  .line #moment { padding-left: 1rem; font-size: 1rem; }
+  .line .send { width: 2.75rem; margin-right: 0.1rem; }
+  .chrome { gap: 1.25rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .view[open], .view.is-closing { animation: none; }
+  .home, .share, .note, .chrome, #labels, .name .ch, .label, .line { transition-duration: 0.01ms; }
+}
+</style>
+<script>document.documentElement.classList.add('js');</script>
+</head>
+<body>
+
+<canvas class="layer" id="field" aria-hidden="true"></canvas>
+<ul class="layer" id="labels" aria-label="Stories in the field"></ul>
+<canvas class="layer" id="fx" aria-hidden="true"></canvas>
+
+<nav class="chrome" aria-label="Archive">
+  <button type="button" class="text-btn" id="open-archive" aria-haspopup="dialog">Archive <span class="count" id="count"></span></button>
+  <button type="button" class="text-btn" id="motion" aria-pressed="false">Pause motion</button>
+</nav>
+
+<main class="home">
+  <div class="home__inner">
+    <h1 class="name" id="name" aria-label="Beyond the Prompt"></h1>
+    <p class="tagline">Every idea has a story behind it.</p>
+  </div>
+</main>
+
+<div class="share" id="share">
+  <p class="status" id="status" role="status" aria-live="polite"></p>
+  <button type="button" class="sphere" id="sphere" aria-label="Share a moment that inspired you" aria-expanded="false" aria-controls="line"></button>
+  <form class="line" id="line" novalidate>
+    <label class="vh" for="moment">Name the moment that inspired you</label>
+    <input id="moment" name="moment" type="text" maxlength="80" autocomplete="off" placeholder="Tell us about a moment that inspired you..." tabindex="-1">
+    <button type="button" class="line-tool" id="moment-voice" aria-label="Start voice input" aria-pressed="false" title="Voice input" tabindex="-1">
+      <svg class="mic-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5.5 11.5v1a6.5 6.5 0 0 0 13 0v-1M12 19v3m-3 0h6"/></svg>
+      <svg class="stop-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>
+    </button>
+    <button type="button" class="line-tool" id="moment-photo" aria-label="Take or attach a photo" aria-haspopup="dialog" aria-controls="photo-dialog" title="Take or attach a photo" tabindex="-1">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h4l2-3h6l2 3h4v13H3z"/><circle cx="12" cy="13" r="3.5"/></svg>
+    </button>
+    <button type="submit" class="send" id="send" aria-label="Continue" tabindex="-1"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h15M14 6.5 19.5 12 14 17.5"/></svg></button>
+  </form>
+  <div class="line-photos" id="line-photos" role="group" aria-label="Attached photos" hidden></div>
+</div>
+
+<dialog class="photo-dialog" id="photo-dialog" aria-labelledby="photo-title">
+  <h2 id="photo-title">Add a photo</h2>
+  <video id="photo-video" autoplay muted playsinline hidden aria-label="Camera preview"></video>
+  <p class="photo-status" id="photo-status" role="status" hidden></p>
+  <div class="photo-actions">
+    <button type="button" id="photo-start" autofocus>Use camera</button>
+    <button type="button" id="photo-take" hidden disabled>Take photo</button>
+    <button type="button" id="photo-choose">Choose image</button>
+    <button type="button" id="photo-close">Close</button>
+  </div>
+  <input id="photo-native" type="file" accept="image/*" capture="environment" hidden>
+  <input id="photo-file" type="file" accept="image/*" multiple hidden>
+</dialog>
+
+<p class="note">Example stories are fictional. An independent student project, not run or endorsed by the RCA.</p>
+
+<noscript>
+  <p style="position:relative;z-index:9;padding:2rem">Beyond the Prompt needs JavaScript to show its stories: the cardboard I almost threw away, a shadow that changed my design, an unexpected conversation at RCA, the photograph I couldn't retake, a broken umbrella on the street, something I found in the workshop.</p>
+</noscript>
+
+<dialog class="view" id="story-view" aria-labelledby="s-title">
+  <div class="view__inner">
+    <div class="view__bar">
+      <button type="button" class="text-btn" data-close><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12H5M10 6.5 4.5 12 10 17.5"/></svg>Back to the field</button>
+      <div class="view__bar-right">
+        <button type="button" class="text-btn" id="prev">Previous</button>
+        <button type="button" class="text-btn" id="next">Next</button>
+      </div>
+    </div>
+    <article>
+      <header class="story__head">
+        <h2 class="story__title" id="s-title" tabindex="-1" autofocus></h2>
+        <p class="story__meta" id="s-meta"></p>
+      </header>
+      <div class="story__answers" id="s-answers"></div>
+      <div class="story__media" id="s-media"></div>
+      <div class="story__foot" id="s-foot"></div>
+    </article>
+  </div>
+</dialog>
+
+<dialog class="view" id="archive-view" aria-labelledby="a-title">
+  <div class="view__inner">
+    <div class="view__bar">
+      <button type="button" class="text-btn" data-close><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12H5M10 6.5 4.5 12 10 17.5"/></svg>Back to the field</button>
+    </div>
+    <h2 class="archive__title" id="a-title" tabindex="-1" autofocus>The archive</h2>
+    <ul class="archive__list" id="a-list"></ul>
+  </div>
+</dialog>
+
+<dialog class="view" id="compose-view" aria-labelledby="c-head">
+  <form class="view__inner" id="compose" novalidate>
+    <div class="view__bar">
+      <button type="button" class="text-btn" data-close><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12H5M10 6.5 4.5 12 10 17.5"/></svg>Back to the field</button>
+    </div>
+    <header class="compose__head">
+      <h2 class="story__title" id="c-head">Tell the whole moment</h2>
+      <p class="compose__intro">Something that really happened to you, in your own words. Only the title and what happened are needed.</p>
+    </header>
+    <div class="compose__grid">
+      <div class="f f--wide">
+        <label for="c-title">The moment</label>
+        <input type="text" id="c-title" name="title" maxlength="80" required>
+        <p class="f__err" id="c-title-err"></p>
+      </div>
+      <div class="f">
+        <label for="c-discipline">Your discipline</label>
+        <input type="text" id="c-discipline" name="discipline" maxlength="60" placeholder="MA Ceramics &amp; Glass">
+      </div>
+      <div class="f">
+        <label for="c-context">Where and when it happened</label>
+        <input type="text" id="c-context" name="context" maxlength="90" placeholder="The kiln room, a Friday in March">
+      </div>
+      <div class="f">
+        <label for="c-happened">What happened?</label>
+        <textarea id="c-happened" name="happened" rows="4" maxlength="1200" required></textarea>
+        <p class="f__err" id="c-happened-err"></p>
+      </div>
+      <div class="f">
+        <label for="c-noticed">What did you notice?</label>
+        <textarea id="c-noticed" name="noticed" rows="4" maxlength="1200"></textarea>
+      </div>
+      <div class="f">
+        <label for="c-influence">How did it influence your thinking?</label>
+        <textarea id="c-influence" name="influence" rows="4" maxlength="1200"></textarea>
+      </div>
+      <div class="f">
+        <label for="c-outcome">What came out of it?</label>
+        <textarea id="c-outcome" name="outcome" rows="4" maxlength="1200"></textarea>
+      </div>
+      <div class="f f--wide">
+        <span class="f__label" id="c-images-label">Photographs, sketches or prototypes</span>
+        <div class="uploads">
+          <label class="text-btn" for="c-images"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Add images</label>
+          <input type="file" id="c-images" accept="image/*" multiple aria-labelledby="c-images-label">
+          <span class="f__label" id="c-images-hint">Up to four. Shown in black and white.</span>
+        </div>
+        <ul class="thumbs" id="c-thumbs"></ul>
+      </div>
+      <div class="f">
+        <label for="c-by">Your name or initials (optional)</label>
+        <input type="text" id="c-by" name="by" maxlength="40" autocomplete="name">
+      </div>
+      <div class="f f--wide consent">
+        <input type="checkbox" id="c-consent" name="consent" required>
+        <label for="c-consent">This happened to me, and I wrote it myself without AI.</label>
+        <p class="f__err" id="c-consent-err"></p>
+      </div>
+    </div>
+    <div class="compose__actions">
+      <button type="submit" class="release" id="release">Release it into the field <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h15M14 6.5 19.5 12 14 17.5"/></svg></button>
+      <p class="compose__status" id="c-status" role="status" aria-live="polite"></p>
+    </div>
+  </form>
+</dialog>
+
+<script type="module">
+/* ------------------------------------------------------------------ data */
+const EXAMPLES = [
+  { id: 'ex-cardboard', title: 'The cardboard I almost threw away', discipline: 'MA Architecture', context: 'The Battersea courtyard, in the rain',
+    happened: 'I was carrying a stack of model board across the courtyard when the rain started. The bottom sheet soaked through and sagged under its own weight into a soft hinge. I nearly put it in the recycling.',
+    noticed: 'It had not creased. It had rolled. The wet fibres made a curve that no scored line could give me.',
+    influence: 'I had been treating folds as cuts. Since then I treat them as moisture and time.',
+    outcome: 'A pavilion model in steamed and dried card, each curve set by how long the sheet sat over a kettle.', pos: [-4.4, 2.1, -1.2] },
+  { id: 'ex-shadow', title: 'A shadow that changed my design', discipline: 'MA Design Products', context: 'Kensington studio, ten past four in February',
+    happened: 'Low sun came through the studio blinds and threw the shadow of my chair prototype onto the wall, three times its length.',
+    noticed: 'The shadow was more convincing than the chair. Its legs read as one continuous line, and the joints I had worked on for weeks disappeared.',
+    influence: 'I stopped designing the object and started designing the line it leaves in light. Every joint now has to justify itself in silhouette.',
+    outcome: 'A stool bent from a single steel tube, tested every evening against the same wall at the same time.', pos: [3.9, 2.5, -2.4] },
+  { id: 'ex-conversation', title: 'An unexpected conversation at RCA', discipline: 'MA Textiles', context: 'The kettle by the metal workshop',
+    happened: 'Waiting for the kettle, a technician from the metal workshop told me he can hear a bad weld before he looks at it.',
+    noticed: 'He described materials by what they do when they fail, never by how they look when they are finished.',
+    influence: 'I started testing my weaves to destruction: pulling, soaking, tearing, and listening while they went.',
+    outcome: 'A series of panels, each woven to give way at one chosen point, shown with the tear left open.', pos: [4.7, -0.9, 0.6] },
+  { id: 'ex-photograph', title: 'The photograph I couldn’t retake', discipline: 'MA Photography', context: 'Two airport scanners, then the darkroom',
+    happened: 'A roll of 35mm went through airport security twice. One frame came back with a pale band across my grandmother’s kitchen, and she has since moved house.',
+    noticed: 'The band fell exactly where the window was, as if the light kept arriving after the shutter closed.',
+    influence: 'I stopped protecting negatives and started asking what else could expose them.',
+    outcome: 'A body of work exposed by carrying film through places: a scanner, a sauna, a whole day in a coat pocket.', pos: [-4.9, -1.3, -2.8] },
+  { id: 'ex-umbrella', title: 'A broken umbrella on the street', discipline: 'MA Fashion', context: 'Kensington Gore, the morning after a storm',
+    happened: 'A black umbrella lay inside out on the pavement. Most of its ribs had snapped; two still held the cloth taut.',
+    noticed: 'The cloth between the surviving ribs made a shape no pattern cutter would draft, tension holding it in a ruff.',
+    influence: 'I put the paper patterns away. Now I build garments on frames first, then break the frames.',
+    outcome: 'Three outer layers stretched over steel ribs. The ribs come out afterwards and the cloth keeps their memory.', pos: [-0.9, 3.7, -3.8] },
+  { id: 'ex-workshop', title: 'Something I found in the workshop', discipline: 'MA Sculpture', context: 'A crate by the plaster workshop door',
+    happened: 'At the end of term someone left a crate of plaster offcuts by the workshop door with a note: take whatever.',
+    noticed: 'Each piece kept the inside surface of a mould I would never see, the negative of somebody else’s decision.',
+    influence: 'I stopped starting from blank. Every piece I make now begins with something another person finished with.',
+    outcome: 'A wall of cast fragments, each joined to a new cast taken from its own broken edge.', pos: [2.3, -2.9, -0.8] },
+].map((s) => ({ ...s, example: true, media: [] }));
+
+const ANSWERS = [['happened', 'What happened'], ['noticed', 'What they noticed'], ['influence', 'How it influenced their thinking'], ['outcome', 'What came out of it']];
+const KINDS = { photo: 'Photograph', sketch: 'Sketch', prototype: 'Prototype' };
+
+const $ = (s) => document.querySelector(s);
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
+const reduceMQ = matchMedia('(prefers-reduced-motion: reduce)');
+let motion = !reduceMQ.matches;
+
+/* ---------------------------------------------------- store (shared or local) */
+const clean = (v, n) => (typeof v === 'string' ? v.slice(0, n) : '');
+function sanitize(id, d) {
+  if (!d || typeof d.title !== 'string' || !d.title.trim()) return null;
+  const media = Array.isArray(d.media) ? d.media.slice(0, 4).map((m) => ({
+    id: typeof m?.id === 'string' && /^[0-9a-f]{32}$/i.test(m.id) ? m.id : null,
+    src: typeof m?.src === 'string' && m.src.startsWith('data:image/') ? m.src : null,
+    kind: KINDS[m?.kind] ? m.kind : 'photo',
+  })).filter((m) => m.id || m.src) : [];
+  return {
+    id, example: false, title: clean(d.title, 80), discipline: clean(d.discipline, 60), context: clean(d.context, 90),
+    happened: clean(d.happened, 1200), noticed: clean(d.noticed, 1200), influence: clean(d.influence, 1200), outcome: clean(d.outcome, 1200),
+    by: clean(d.by, 40), uid: clean(d.uid, 200), createdAt: Number.isFinite(d.createdAt) ? d.createdAt : 0, media,
+  };
+}
+
+const store = {
+  mode: 'local', db: null, assets: null, user: null, uid: null, owner: false, canWrite: true, why: '', cb: null,
+  async init() {
+    const c = window.claude;
+    if (!c || typeof c.use !== 'function') return; // local preview
+    this.mode = 'shared';
+    const [db, user, assets] = await Promise.all([c.use('db'), c.use('user'), c.use('assets')]);
+    this.db = db; this.user = user; this.assets = assets;
+    if (!db) { this.canWrite = false; this.why = 'Sign in with access to this archive to add a moment.'; return; }
+    try { this.uid = (await user?.id()) || null; } catch (e) { this.uid = null; }
+    try { this.owner = (await user?.isOwner()) ?? false; } catch (e) { this.owner = false; }
+    try { const w = await user?.can('data.write'); if (w === false) { this.canWrite = false; this.why = 'You can read this archive. Adding a moment needs Contributor access from its owner.'; } } catch (e) { /* unknown: keep inputs */ }
+  },
+  subscribe(cb) {
+    this.cb = cb;
+    if (this.mode === 'local') { cb(this.readLocal()); return; }
+    if (!this.db) { cb([]); return; }
+    let answered = false;
+    const timer = setTimeout(() => { if (!answered) announce('The shared archive is slow to answer. The examples are here meanwhile.'); }, 10000);
+    this.db.collection('stories').orderBy('createdAt', 'asc').limit(600).onSnapshot(
+      (snap) => { if (!snap.metadata.fromCache) { answered = true; clearTimeout(timer); } cb(snap.docs.map((d) => sanitize(d.id, d.data())).filter(Boolean)); },
+      () => { answered = true; clearTimeout(timer); announce('The shared archive cannot be reached right now. The examples are still here.'); },
+    );
+  },
+  readLocal() {
+    try { const a = JSON.parse(localStorage.getItem('btp/stories/v2') || '[]'); return Array.isArray(a) ? a.map((d) => sanitize(d.id, d)).filter(Boolean) : []; } catch (e) { return []; }
+  },
+  newId() { return this.db ? this.db.collection('stories').doc().id : 'l' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); },
+  async add(id, data) {
+    if (this.mode === 'local') {
+      const list = this.readLocal(); list.push({ id, ...data });
+      localStorage.setItem('btp/stories/v2', JSON.stringify(list));
+      this.cb?.(this.readLocal());
+      return;
+    }
+    await this.db.collection('stories').doc(id).set(data);
+  },
+  async remove(story) {
+    if (this.mode === 'local') {
+      localStorage.setItem('btp/stories/v2', JSON.stringify(this.readLocal().filter((s) => s.id !== story.id)));
+      this.cb?.(this.readLocal()); return;
+    }
+    await this.db.doc('stories/' + story.id).delete();
+    for (const m of story.media) if (m.id && this.assets) { try { await this.assets.delete(m.id); } catch (e) { /* not ours, or already gone */ } }
+  },
+  async upload(blob) {
+    if (this.mode === 'local') return { src: await new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); }) };
+    if (!this.assets) throw { code: 'not_granted' };
+    const res = await this.assets.upload(blob, { type: 'image/jpeg' });
+    return { id: res.id };
+  },
+  canUpload() { return this.mode === 'local' || !!this.assets; },
+  canRemove(s) { return !s.example && (this.mode === 'local' || this.owner || (!!this.uid && s.uid === this.uid)); },
+};
+const imgSrc = (m) => (m.id ? '/_blob/' + m.id : m.src);
+
+/* ------------------------------------------------------- shared state */
+let stories = [...EXAMPLES];
+const byId = (id) => stories.find((s) => s.id === id);
+let pendingSpawn = null;
+
+const statusEl = $('#status');
+let statusT = 0;
+function announce(msg) {
+  clearTimeout(statusT);
+  statusEl.textContent = msg;
+  statusT = setTimeout(() => { statusEl.textContent = ''; }, 9000);
+}
+
+/* ----------------------------------------------------------- camera */
+const FOV = 50, CAM_Z = 10, TAN = Math.tan((FOV * Math.PI) / 360);
+const cam = { x: 0, y: 0, z: CAM_Z };
+const REST = { x: 0, y: 0, z: CAM_Z };
+let W = innerWidth, H = innerHeight, DPR = Math.min(devicePixelRatio || 1, 2);
+function project(x, y, z, c = cam) {
+  const dz = c.z - z;
+  if (dz < 0.3) return null;
+  const f = H / 2 / TAN;
+  return { x: W / 2 + ((x - c.x) * f) / dz, y: H / 2 - ((y - c.y) * f) / dz, k: CAM_Z / dz };
+}
+const pointer = { x: -9999, y: -9999, nx: 0, ny: 0, inside: false, fine: matchMedia('(pointer: fine)').matches };
+addEventListener('pointermove', (e) => {
+  pointer.x = e.clientX; pointer.y = e.clientY; pointer.inside = true;
+  pointer.nx = (e.clientX / W) * 2 - 1; pointer.ny = -((e.clientY / H) * 2 - 1);
+  pointer.fine = e.pointerType === 'mouse';
+}, { passive: true });
+document.documentElement.addEventListener('pointerleave', () => { pointer.inside = false; pointer.x = pointer.y = -9999; });
+
+/* ---------------------------------------------------- story labels */
+const labelsEl = $('#labels');
+const nodes = new Map();
+function seeded(str) {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return () => { h ^= h << 13; h ^= h >>> 17; h ^= h << 5; return ((h >>> 0) % 100000) / 100000; };
+}
+function addNode(s) {
+  const li = document.createElement('li');
+  li.className = 'label-item';
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = 'label'; b.textContent = s.title;
+  if (s.example) b.setAttribute('aria-label', s.title + ', fictional example');
+  li.append(b);
+  labelsEl.append(li);
+  const r = seeded(s.id);
+  const node = { s, li, b, anchor: null, phase: r() * 6.283, born: 0, hover: 0, gather: 0 };
+  b.addEventListener('click', () => openStory(s.id, true));
+  b.addEventListener('pointerenter', () => { node.hover = 1; });
+  b.addEventListener('pointerleave', () => { node.hover = 0; });
+  b.addEventListener('focus', () => { node.hover = 1; });
+  b.addEventListener('blur', () => { node.hover = 0; });
+  nodes.set(s.id, node);
+  return node;
+}
+function removeNode(id) {
+  const n = nodes.get(id);
+  if (!n) return;
+  n.li.remove(); gl?.removeCluster(id); nodes.delete(id);
+}
+function reserved() {
+  const out = [];
+  const add = (r, mx, my) => out.push({ l: r.left - mx, t: r.top - my, r: r.right + mx, b: r.bottom + my });
+  add($('.home__inner').getBoundingClientRect(), 60, 40);
+  add($('#share').getBoundingClientRect(), 30, 60);
+  add($('.chrome').getBoundingClientRect(), 24, 24);
+  add($('.note').getBoundingClientRect(), 24, 24);
+  return out;
+}
+const overlap = (a, b) => Math.max(0, Math.min(a.r, b.r) - Math.max(a.l, b.l)) * Math.max(0, Math.min(a.b, b.b) - Math.max(a.t, b.t));
+// Titles never render below 13px; far depth is carried by blur and dimming instead.
+let labelPx = 18;
+const scaleFor = (k) => Math.max(k, 13 / labelPx);
+const blurFor = (z) => clamp((-z - 1.2) / 3, 0, 1) * 0.5;
+function rectAt(n, p) {
+  const s = project(p[0], p[1], p[2], REST);
+  if (!s) return null;
+  const k = scaleFor(s.k);
+  const w = n.b.offsetWidth * k, h = n.b.offsetHeight * k, pad = 20;
+  return { l: s.x - w / 2 - pad, r: s.x + w / 2 + pad, t: s.y - h / 2 - pad, b: s.y + h / 2 + pad };
+}
+function place(list) {
+  const first = nodes.values().next().value;
+  if (first) labelPx = parseFloat(getComputedStyle(first.b).fontSize) || 18;
+  const res = reserved();
+  const moving = new Set(list);
+  const placed = [];
+  for (const n of nodes.values()) if (!moving.has(n) && n.anchor) { const r = rectAt(n, n.anchor); if (r) placed.push(r); }
+  const narrow = W < 700;
+  for (const n of list) {
+    n.w0 = n.b.offsetWidth; n.h0 = n.b.offsetHeight;
+    const r = seeded(n.s.id + (narrow ? 'n' : 'w'));
+    const cands = [];
+    if (!narrow && n.s.pos) cands.push(n.s.pos);
+    for (let i = 0; i < 500; i++) {
+      const z = -4.2 + r() * 5.6;
+      const hh = (CAM_Z - z) * TAN, hw = (hh * W) / H;
+      cands.push([(r() * 2 - 1) * hw * 0.94, (r() * 2 - 1) * hh * 0.92, z]);
+    }
+    // Among positions that touch nothing, take the one farthest from everything already there.
+    const cx = (q) => (q.l + q.r) / 2, cy = (q) => (q.t + q.b) / 2;
+    const gap = (a, q) => Math.hypot(Math.max(0, q.l - a.r, a.l - q.r), Math.max(0, q.t - a.b, a.t - q.b));
+    let best = null, bestScore = Infinity;
+    for (let ci = 0; ci < cands.length; ci++) {
+      const p = cands[ci];
+      const rect = rectAt(n, p);
+      if (!rect) continue;
+      let sc = 0;
+      if (rect.l < 6 || rect.r > W - 6 || rect.t < 6 || rect.b > H - 6) sc += 1e7;
+      for (const q of res) sc += overlap(rect, q) * 6;
+      for (const q of placed) sc += overlap(rect, q) * 3;
+      if (sc === 0) {
+        let room = Math.min(W, H) * 0.26;
+        for (const q of placed) room = Math.min(room, Math.hypot(cx(rect) - cx(q), cy(rect) - cy(q)));
+        for (const q of res) room = Math.min(room, gap(rect, q) * 2.2);
+        // pull toward a loose ring around the name rather than the frame's edge
+        const ring = Math.hypot((cx(rect) - W / 2) / (W * 0.34), (cy(rect) - H * 0.47) / (H * 0.33));
+        sc = -room + Math.abs(ring - 1) * Math.min(W, H) * 0.35 - (ci === 0 && n.s.pos && !narrow ? 30 : 0);
+      }
+      if (sc < bestScore) { bestScore = sc; best = { p, rect }; }
+    }
+    if (best) { n.anchor = best.p; placed.push(best.rect); gl?.moveCluster(n.s.id, best.p); }
+  }
+}
+
+/* --------------------------------------------------------- the name */
+const nameEl = $('#name');
+nameEl.replaceChildren(...[...'Beyond the Prompt'].map((c) => { const s = document.createElement('span'); s.className = 'ch'; s.setAttribute('aria-hidden', 'true'); s.textContent = c === ' ' ? ' ' : c; return s; }));
+const letters = [];
+function sampleName() {
+  letters.length = 0;
+  const cs = getComputedStyle(nameEl);
+  const size = parseFloat(cs.fontSize);
+  const off = document.createElement('canvas');
+  const o = off.getContext('2d', { willReadFrequently: true });
+  const S = 3;
+  [...nameEl.children].forEach((sp) => {
+    const r = sp.getBoundingClientRect();
+    const L = { el: sp, cx: r.left + r.width / 2, cy: r.top + r.height / 2, d: 0, until: 0, op: 1, pts: [] };
+    letters.push(L);
+    const ch = sp.textContent.toUpperCase();
+    if (!ch.trim()) return;
+    o.font = `${cs.fontWeight} ${size * S}px ${cs.fontFamily}`;
+    const m = o.measureText(ch);
+    const asc = m.actualBoundingBoxAscent, desc = m.actualBoundingBoxDescent;
+    const gw = Math.ceil(m.width) + 6, gh = Math.ceil(asc + desc) + 6;
+    off.width = gw; off.height = gh;
+    o.font = `${cs.fontWeight} ${size * S}px ${cs.fontFamily}`;
+    o.fillStyle = '#fff'; o.textBaseline = 'alphabetic';
+    o.fillText(ch, 3, asc + 3);
+    const data = o.getImageData(0, 0, gw, gh).data;
+    const glyphH = gh / S;
+    const ox = r.left - 1, oy = r.top + r.height / 2 - glyphH / 2;
+    const pts = [];
+    for (let y = 0; y < gh; y += 2) for (let x = 0; x < gw; x += 2) if (data[(y * gw + x) * 4 + 3] > 110) pts.push({ hx: ox + x / S, hy: oy + y / S });
+    for (let k = pts.length - 1; k > 0; k--) { const j = Math.floor(Math.random() * (k + 1)); [pts[k], pts[j]] = [pts[j], pts[k]]; }
+    L.pts = pts.slice(0, 90).map((p) => ({ ...p, x: p.hx, y: p.hy, k: 0.25 + Math.random() * 0.75, a: Math.random() * 6.283, rr: 8 + Math.random() * 34, sp: 0.4 + Math.random() * 0.9, al: 0.45 + Math.random() * 0.55 }));
+  });
+}
+
+/* --------------------------------------------------- the fx layer (2D) */
+const fx = $('#fx');
+const g2 = fx.getContext('2d');
+function sizeFx() { fx.width = Math.round(W * DPR); fx.height = Math.round(H * DPR); g2.setTransform(DPR, 0, 0, DPR, 0, 0); }
+const glowSprite = (() => {
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const x = c.getContext('2d');
+  const gr = x.createRadialGradient(64, 64, 0, 64, 64, 64);
+  gr.addColorStop(0, 'rgba(255,255,255,0.55)'); gr.addColorStop(0.25, 'rgba(255,255,255,0.16)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+  x.fillStyle = gr; x.fillRect(0, 0, 128, 128);
+  return c;
+})();
+const motes = Array.from({ length: 16 }, () => ({ a: Math.random() * 6.283, r: 0.55 + Math.random() * 0.7, s: 0.05 + Math.random() * 0.08, y: Math.random() * 2 - 1, al: 0.15 + Math.random() * 0.35, z: 0.6 + Math.random() * 0.9 }));
+const sparks = [];
+
+const shareEl = $('#share');
+const SPHERE_N = 1600;
+const sphereP = [];
+for (let i = 0; i < SPHERE_N; i++) {
+  const t = (i + 0.5) / SPHERE_N, inc = Math.acos(1 - 2 * t), az = Math.PI * (1 + Math.sqrt(5)) * i;
+  const ux = Math.sin(inc) * Math.cos(az), uy = Math.cos(inc), uz = Math.sin(inc) * Math.sin(az);
+  const shell = 0.82 + Math.random() * 0.3; // a soft, slightly thick surface rather than a hard rim
+  sphereP.push({ ux: ux * shell, uy: uy * shell, uz: uz * shell, s: Math.random(), n: (Math.random() - 0.5) * 2.4, delay: (ux + 1) / 2, sw: (Math.random() - 0.5) * 2, sz: Math.random() < 0.06 ? 1.4 : 0.9, jit: Math.random() * 6.283 });
+}
+const sphere = { m: 0, target: 0, pulse: 0, swell: 0, cx: 0, cy: 0, pw: 0, ph: 0 };
+const emit = [];
+
+function pillPoint(u, w, h) {
+  const r = h / 2, straight = Math.max(0, w - h), per = 2 * straight + 2 * Math.PI * r;
+  let d = (((u % 1) + 1) % 1) * per;
+  if (d < straight) return [-straight / 2 + d, -r, 0, -1];
+  d -= straight;
+  if (d < Math.PI * r) { const a = -Math.PI / 2 + d / r; return [straight / 2 + Math.cos(a) * r, Math.sin(a) * r, Math.cos(a), Math.sin(a)]; }
+  d -= Math.PI * r;
+  if (d < straight) return [straight / 2 - d, r, 0, 1];
+  d -= straight;
+  const a = Math.PI / 2 + d / r;
+  return [-straight / 2 + Math.cos(a) * r, Math.sin(a) * r, Math.cos(a), Math.sin(a)];
+}
+
+let simT = 0, lastT = performance.now(), veil = 1;
+function drawFx(now, dt) {
+  g2.clearRect(0, 0, W, H);
+  const reading = document.body.classList.contains('is-reading');
+  veil += ((reading ? 0 : 1) - veil) * (1 - Math.exp(-dt * (motion ? 4 : 60)));
+  fx.style.opacity = veil.toFixed(3);
+  if (veil < 0.01) return;
+  g2.globalCompositeOperation = 'lighter';
+  const t = simT;
+
+  /* the name */
+  const nr = nameEl.getBoundingClientRect();
+  const nearName = pointer.inside && pointer.x > nr.left - 50 && pointer.x < nr.right + 50 && pointer.y > nr.top - 45 && pointer.y < nr.bottom + 45;
+  const ncx = nr.left + nr.width / 2, ncy = nr.top + nr.height / 2;
+  for (const m of motes) {
+    const a = m.a + t * m.s;
+    const x = ncx + Math.cos(a) * nr.width * 0.62 * m.r, y = ncy + m.y * 34 + Math.sin(a * 1.3) * 10;
+    g2.fillStyle = `rgba(255,255,255,${(m.al * (0.6 + 0.4 * Math.sin(t * 0.7 + m.a))).toFixed(3)})`;
+    g2.fillRect(x, y, m.z, m.z);
+  }
+  for (const L of letters) {
+    if (!L.pts.length) continue;
+    if (motion && nearName) {
+      const dist = Math.hypot(pointer.x - L.cx, pointer.y - L.cy);
+      if (dist < 64 && now > L.until + 350 && Math.random() < 0.035) L.until = now + 650 + Math.random() * 500;
+    }
+    const want = now < L.until ? 1 : 0;
+    L.d += (want - L.d) * (1 - Math.exp(-dt * (want ? 7 : 2.4)));
+    if (L.d < 0.004 && !want) { if (L.op !== 1) { L.el.style.opacity = ''; L.op = 1; } continue; }
+    const op = clamp(1 - L.d * 1.4, 0, 1);
+    L.el.style.opacity = op.toFixed(3); L.op = op;
+    for (const p of L.pts) {
+      const ax = pointer.inside ? pointer.x : L.cx, ay = pointer.inside ? pointer.y : L.cy;
+      const orbitX = ax + Math.cos(p.a + t * p.sp) * p.rr, orbitY = ay + Math.sin(p.a + t * p.sp) * p.rr * 0.7;
+      const k = L.d * p.k;
+      const tx = lerp(p.hx, lerp(p.hx, orbitX, 0.55), k) + Math.cos(p.a * 3 + t) * 3 * L.d;
+      const ty = lerp(p.hy, lerp(p.hy, orbitY, 0.55), k) + Math.sin(p.a * 2 + t * 1.2) * 3 * L.d;
+      p.x += (tx - p.x) * 0.12; p.y += (ty - p.y) * 0.12;
+      g2.fillStyle = `rgba(255,255,255,${(p.al * clamp(L.d * 1.6, 0, 1)).toFixed(3)})`;
+      g2.fillRect(p.x, p.y, 1, 1);
+    }
+  }
+  if (motion && nearName && sparks.length < 160) {
+    for (let i = 0; i < 2; i++) {
+      const L = letters[Math.floor(Math.random() * letters.length)];
+      const p = L && L.pts[Math.floor(Math.random() * L.pts.length)];
+      if (p && Math.hypot(p.hx - pointer.x, p.hy - pointer.y) < 90) sparks.push({ x: p.hx, y: p.hy, vx: (Math.random() - 0.5) * 18, vy: -6 - Math.random() * 16, life: 1, dec: 0.5 + Math.random() * 0.5 });
+    }
+  }
+  for (let i = sparks.length - 1; i >= 0; i--) {
+    const s = sparks[i];
+    s.vx += (pointer.x - s.x) * 0.02 * dt; s.vy += (pointer.y - s.y) * 0.02 * dt;
+    s.x += s.vx * dt; s.y += s.vy * dt; s.life -= s.dec * dt;
+    if (s.life <= 0) { sparks.splice(i, 1); continue; }
+    g2.fillStyle = `rgba(255,255,255,${(s.life * 0.7).toFixed(3)})`;
+    g2.fillRect(s.x, s.y, 1, 1);
+  }
+
+  /* the sphere */
+  const sr = shareEl.getBoundingClientRect();
+  sphere.cx = sr.left + sr.width / 2; sphere.cy = sr.top + sr.height / 2; sphere.pw = sr.width; sphere.ph = sr.height;
+  const rate = motion ? (sphere.target ? 2.6 : 2.0) : 60;
+  sphere.m += (sphere.target - sphere.m) * (1 - Math.exp(-dt * rate));
+  if (Math.abs(sphere.target - sphere.m) < 0.002) sphere.m = sphere.target;
+  shareEl.classList.toggle('is-ready', sphere.m > 0.82);
+  sphere.pulse = Math.max(0, sphere.pulse - dt * 0.9);
+  const near = sphere.target === 0 && pointer.inside && Math.hypot(pointer.x - sphere.cx, pointer.y - sphere.cy) < 80 ? 0.14 : 0;
+  sphere.swell += (near - sphere.swell) * 0.1;
+  const R = 22 * (1 + 0.045 * Math.sin(t * 1.25) + sphere.pulse * 0.35 + sphere.swell);
+  const rotY = t * 0.32, tilt = 0.38;
+  const cY = Math.cos(rotY), sY = Math.sin(rotY), cT = Math.cos(tilt), sT = Math.sin(tilt);
+  const m = sphere.m;
+  const ga = (0.32 + 0.1 * Math.sin(t * 1.25)) * (1 - m) + sphere.pulse * 0.4;
+  if (ga > 0.005) { g2.globalAlpha = clamp(ga, 0, 1); const gs = R * 5.2; g2.drawImage(glowSprite, sphere.cx - gs / 2, sphere.cy - gs / 2, gs, gs); g2.globalAlpha = 1; }
+  const pw = sphere.pw, ph = sphere.ph;
+  for (const p of sphereP) {
+    const x = p.ux * cY + p.uz * sY; let z = -p.ux * sY + p.uz * cY;
+    const y = p.uy * cT - z * sT; z = p.uy * sT + z * cT;
+    const sx = sphere.cx + x * R, sy = sphere.cy + y * R;
+    const depth = (z + 1) / 2;
+    let px = sx, py = sy, alpha = (0.03 + 0.4 * depth * depth * depth) * (0.55 + 0.45 * Math.sin(p.jit + t * 0.9));
+    if (m > 0.0005) {
+      const mp = easeInOut(clamp(m * 1.45 - p.delay * 0.45, 0, 1));
+      if (motion) p.s += 0.00003 * (p.sw > 0 ? 1 : -1);
+      const q = pillPoint(p.s, pw, ph);
+      const tx = sphere.cx + q[0] + q[2] * p.n, ty = sphere.cy + q[1] + q[3] * p.n;
+      const swirl = Math.sin(mp * Math.PI);
+      px = lerp(sx, tx, mp) + swirl * p.sw * 18; py = lerp(sy, ty, mp) + swirl * Math.cos(p.jit) * 12;
+      alpha = lerp(alpha, 0.28 + 0.32 * Math.abs(Math.sin(p.jit + t * 0.8)), mp);
+    }
+    g2.fillStyle = `rgba(255,255,255,${alpha.toFixed(3)})`;
+    g2.fillRect(px - p.sz / 2, py - p.sz / 2, p.sz, p.sz);
+  }
+
+  /* particles travelling into the field */
+  for (let i = emit.length - 1; i >= 0; i--) {
+    const e = emit[i];
+    if (now < e.t0) continue;
+    const u = clamp((now - e.t0) / e.dur, 0, 1);
+    if (now > e.t0 + e.dur + 700) { emit.splice(i, 1); continue; }
+    const k = easeInOut(u), ix = 1 - k;
+    const x = ix * ix * e.x0 + 2 * ix * k * e.cx + k * k * e.x1, y = ix * ix * e.y0 + 2 * ix * k * e.cy + k * k * e.y1;
+    const fade = u < 1 ? 1 : 1 - (now - e.t0 - e.dur) / 700;
+    g2.fillStyle = `rgba(255,255,255,${(e.al * fade).toFixed(3)})`;
+    g2.fillRect(x, y, e.sz, e.sz);
+  }
+  g2.globalCompositeOperation = 'source-over';
+}
+
+/* sphere behaviour */
+const sphereBtn = $('#sphere'), lineForm = $('#line'), input = $('#moment'), sendBtn = $('#send');
+const voiceBtn = $('#moment-voice'), photoBtn = $('#moment-photo'), linePhotos = $('#line-photos');
+const lineControls = [input, voiceBtn, photoBtn, sendBtn];
+let hoveringShare = false;
+function openLine(focus) {
+  sphere.target = 1;
+  shareEl.classList.add('is-open');
+  sphereBtn.setAttribute('aria-expanded', 'true');
+  lineControls.forEach((control) => { control.tabIndex = 0; });
+  if (focus) setTimeout(() => input.focus({ preventScroll: true }), motion ? 380 : 0);
+}
+function closeLine() {
+  cancelVoice();
+  sphere.target = 0;
+  shareEl.classList.remove('is-open');
+  sphereBtn.setAttribute('aria-expanded', 'false');
+  lineControls.forEach((control) => { control.tabIndex = -1; });
+}
+function maybeClose() {
+  if (!input.value.trim() && !pending.length && !photoDialog.open && !attachingPhotos && !recognition
+      && !shareEl.contains(document.activeElement) && !hoveringShare) closeLine();
+}
+sphereBtn.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse') { hoveringShare = true; openLine(false); } });
+shareEl.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') { hoveringShare = false; setTimeout(maybeClose, 250); } });
+shareEl.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse' && shareEl.classList.contains('is-open')) hoveringShare = true; });
+sphereBtn.addEventListener('click', () => openLine(true));
+sphereBtn.addEventListener('focus', () => openLine(true));
+shareEl.addEventListener('focusout', () => setTimeout(maybeClose, 150));
+shareEl.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  hoveringShare = false;
+  document.activeElement.blur();
+  closeLine();
+});
+lineForm.addEventListener('submit', (e) => {
+  e.preventDefault();
+  if (recognition) { stopVoice(); return; }
+  if (attachingPhotos) { announce('Wait for the photos to finish attaching.'); return; }
+  if (savingMoment || composeView.open) return;
+  const v = input.value.trim();
+  if (!store.canWrite) { announce(store.why); return; }
+  if (v.length < 3) { announce('Give the moment a few words first, like the cardboard you almost threw away.'); input.focus(); return; }
+  openCompose(v);
+});
+
+/* voice input */
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recognition = null;
+function setVoiceActive(active) {
+  voiceBtn.setAttribute('aria-pressed', String(active));
+  voiceBtn.setAttribute('aria-label', active ? 'Stop voice input' : 'Start voice input');
+  voiceBtn.title = active ? 'Stop voice input' : 'Voice input';
+  voiceBtn.disabled = false;
+}
+function cancelVoice() {
+  if (!recognition) return;
+  const session = recognition;
+  recognition = null;
+  session.abort();
+  setVoiceActive(false);
+  announce('');
+}
+function stopVoice() {
+  if (voiceBtn.disabled) return;
+  voiceBtn.disabled = true;
+  recognition.stop();
+  announce('Finishing voice input…');
+}
+voiceBtn.addEventListener('click', () => {
+  if (recognition) { stopVoice(); return; }
+  if (!SpeechRecognition) { announce('Voice input is unavailable in this browser. You can still type your moment.'); return; }
+  if (!window.isSecureContext) { announce('Voice input needs a secure page. You can still type your moment.'); return; }
+  if (input.value.trimEnd().length >= input.maxLength) { announce('The title is limited to 80 characters. Shorten it to add more.'); return; }
+  const session = new SpeechRecognition();
+  session.lang = navigator.language || document.documentElement.lang || 'en';
+  session.continuous = false;
+  session.interimResults = false;
+  let hasText = false;
+  let failed = false;
+  session.onresult = (event) => {
+    if (recognition !== session) return;
+    const transcript = Array.from(event.results).slice(event.resultIndex)
+      .filter((result) => result.isFinal).map((result) => result[0].transcript.trim()).filter(Boolean).join(' ');
+    if (!transcript) return;
+    const draft = input.value.trimEnd();
+    input.value = [draft, transcript].filter(Boolean).join(' ').slice(0, input.maxLength).replace(/[\uD800-\uDBFF]$/, '');
+    hasText = true;
+    announce('Voice added. You can edit it before continuing.');
+  };
+  session.onerror = ({ error }) => {
+    if (recognition !== session) return;
+    failed = true;
+    const messages = {
+      'not-allowed': 'Allow microphone access to use voice input.',
+      'service-not-allowed': 'Voice input is blocked by this browser or page.',
+      'audio-capture': 'No microphone is available. You can still type your moment.',
+      'no-speech': 'No speech heard. Try speaking again.',
+      network: 'Voice recognition could not connect. Try again or type your moment.',
+      'language-not-supported': 'This browser does not support voice recognition in your current language.',
+    };
+    announce(messages[error] || 'Voice input could not start. You can still type your moment.');
+  };
+  session.onend = () => {
+    if (recognition !== session) return;
+    recognition = null;
+    setVoiceActive(false);
+    if (!failed && !hasText) announce('No speech heard. Try speaking again.');
+    if (hasText && document.activeElement === voiceBtn) input.focus({ preventScroll: true });
+  };
+  recognition = session;
+  try {
+    session.start();
+    setVoiceActive(true);
+    announce('Listening…');
+  } catch {
+    recognition = null;
+    setVoiceActive(false);
+    announce('Voice input could not start. You can still type your moment.');
+  }
+});
+
+/* -------------------------------------------------------- the field (WebGL) */
+let gl = null;
+const VERT = `
+uniform float uTime, uClock, uPR, uDim, uBirth, uGather, uSizeK, uFocusMine, uBoost;
+uniform vec3 uFocus;
+uniform vec2 uMouse;
+uniform vec2 uClear;
+attribute vec4 aSeed;
+attribute float aSize;
+varying float vA;
+varying float vTone;
+void main() {
+  float b = clamp((uClock - uBirth) / 2.2, 0.0, 1.0);
+  b = 1.0 - pow(1.0 - b, 3.0);
+  vec3 p = position * b * mix(1.0, 0.42, uGather);
+  float t = uTime;
+  p += vec3(sin(t * 0.13 * (0.5 + aSeed.x) + aSeed.y * 6.2832), cos(t * 0.1 * (0.5 + aSeed.z) + aSeed.w * 6.2832), sin(t * 0.08 * (0.5 + aSeed.y) + aSeed.x * 6.2832)) * (0.06 + aSeed.w * 0.22) * (1.0 - uGather * 0.6);
+  vec3 wp = (modelMatrix * vec4(p, 1.0)).xyz;
+  vec2 dm = wp.xy - uMouse;
+  float fm = exp(-dot(dm, dm) / 1.8);
+  wp.xy += normalize(dm + 1e-4) * fm * 0.32;
+  vec3 v = wp - uFocus;
+  float d = length(v);
+  wp += normalize(v + 1e-4) * uDim * (1.0 - uFocusMine) * (1.6 / (1.0 + d * 0.4)) * (0.4 + aSeed.x);
+  vec4 mv = viewMatrix * vec4(wp, 1.0);
+  gl_Position = projectionMatrix * mv;
+  gl_PointSize = max(1.0, aSize * uPR * uSizeK * (0.75 + 0.25 * uBoost) / -mv.z);
+  float depth = smoothstep(34.0, 4.0, -mv.z);
+  float tw = 0.72 + 0.28 * sin(uTime * (0.6 + aSeed.z * 1.2) + aSeed.y * 40.0);
+  vA = ((0.16 + 0.5 * aSeed.z) * tw + fm * 0.22) * uBoost * depth * mix(1.0, 2.6, uGather) * mix(3.0, 1.0, b)
+     * mix(1.0, mix(0.08, 1.2, uFocusMine), uDim);
+  // keep a cluster's light off its own title: fade points inside the measured label box
+  if (uClear.x > 0.0) { vec2 q = abs(p.xy) / uClear; vA *= smoothstep(0.92, 1.3, max(q.x, q.y)); }
+  vTone = 0.66 + 0.34 * aSeed.w;
+}`;
+const FRAG = `
+varying float vA;
+varying float vTone;
+void main() {
+  vec2 c = gl_PointCoord - 0.5;
+  float r = length(c);
+  if (r > 0.5) discard;
+  float a = smoothstep(0.5, 0.0, r);
+  a *= a;
+  gl_FragColor = vec4(vec3(vTone), a * vA);
+}`;
+const gauss = () => { let u = 0, v = 0; while (!u) u = Math.random(); while (!v) v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+
+async function initGL() {
+  let THREE;
+  try { THREE = await import('https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js'); } catch (e) { return null; }
+  let renderer;
+  try { renderer = new THREE.WebGLRenderer({ canvas: $('#field'), antialias: false, alpha: true, powerPreference: 'high-performance' }); } catch (e) { return null; }
+  renderer.setPixelRatio(DPR); renderer.setClearColor(0x000000, 0); renderer.setSize(W, H, false);
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(FOV, W / H, 0.1, 160);
+  const shared = { uTime: { value: 0 }, uClock: { value: 0 }, uPR: { value: DPR }, uDim: { value: 0 }, uSizeK: { value: 40 }, uFocus: { value: new THREE.Vector3(0, 0, -300) }, uMouse: { value: new THREE.Vector2(999, 999) } };
+  const mat = (birth, boost) => new THREE.ShaderMaterial({
+    uniforms: { ...shared, uBirth: { value: birth }, uGather: { value: 0 }, uFocusMine: { value: 0 }, uBoost: { value: boost }, uClear: { value: new THREE.Vector2(0, 0) } },
+    vertexShader: VERT, fragmentShader: FRAG, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+  });
+  function geo(n, fill, sizeFn) {
+    const pos = new Float32Array(n * 3), seed = new Float32Array(n * 4), size = new Float32Array(n);
+    for (let i = 0; i < n; i++) { fill(pos, i); for (let k = 0; k < 4; k++) seed[i * 4 + k] = Math.random(); size[i] = sizeFn(); }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    g.setAttribute('aSeed', new THREE.BufferAttribute(seed, 4));
+    g.setAttribute('aSize', new THREE.BufferAttribute(size, 1));
+    return g;
+  }
+  const dust = new THREE.Points(geo(W < 700 ? 5000 : 11000, (p, i) => {
+    p[i * 3] = (Math.random() * 2 - 1) * 22; p[i * 3 + 1] = gauss() * (Math.random() < 0.6 ? 5.5 : 1.8); p[i * 3 + 2] = -20 + Math.random() * 24;
+  }, () => 0.5 + Math.random() ** 8 * 2.4), mat(-100, 1));
+  dust.frustumCulled = false; scene.add(dust);
+  const clusters = new Map();
+  return {
+    addCluster(id, a, birth) {
+      if (clusters.has(id) || !a) return;
+      const pts = new THREE.Points(geo(260, (p, i) => {
+        // a loose halo around the title, kept clear behind the words themselves
+        let x, y;
+        do { x = gauss() * 1.05; y = gauss() * 0.46; } while ((x / 0.95) ** 2 + (y / 0.26) ** 2 < 1);
+        p[i * 3] = x; p[i * 3 + 1] = y; p[i * 3 + 2] = gauss() * 0.4 - 0.5;
+      }, () => 0.6 + Math.random() ** 4 * 1.8), mat(birth, 1.9));
+      pts.frustumCulled = false; pts.position.set(a[0], a[1], a[2]);
+      clusters.set(id, pts); scene.add(pts);
+    },
+    moveCluster(id, a) { clusters.get(id)?.position.set(a[0], a[1], a[2]); },
+    removeCluster(id) { const c = clusters.get(id); if (!c) return; scene.remove(c); c.geometry.dispose(); c.material.dispose(); clusters.delete(id); },
+    resize() { renderer.setPixelRatio(DPR); renderer.setSize(W, H, false); camera.aspect = W / H; camera.updateProjectionMatrix(); shared.uPR.value = DPR; },
+    render(st) {
+      camera.position.set(cam.x, cam.y, cam.z);
+      shared.uTime.value = st.simT; shared.uClock.value = st.clock; shared.uDim.value = st.dim;
+      if (st.focus) shared.uFocus.value.set(st.focus[0], st.focus[1], st.focus[2]);
+      shared.uMouse.value.set(st.mouse[0], st.mouse[1]);
+      for (const [id, c] of clusters) {
+        const n = nodes.get(id);
+        if (n) {
+          c.material.uniforms.uGather.value = n.gather; c.material.uniforms.uFocusMine.value = n === focusNode ? 1 : 0;
+          if (n.anchor) {
+            const dz = CAM_Z - n.anchor[2], f = H / 2 / TAN, ks = scaleFor(CAM_Z / dz);
+            c.material.uniforms.uClear.value.set(((n.w0 || 0) * ks / 2 + 8) * dz / f, ((n.h0 || 0) * ks / 2 + 5) * dz / f);
+          }
+        }
+      }
+      renderer.render(scene, camera);
+    },
+    clock: () => performance.now() / 1000,
+  };
+}
+
+/* --------------------------------------------------------- the loop */
+let focusNode = null, dim = 0;
+function tick(now) {
+  requestAnimationFrame(tick);
+  const dt = Math.min(0.05, (now - lastT) / 1000); lastT = now;
+  if (document.hidden) return;
+  if (motion) simT += dt;
+
+  const tgt = { x: 0, y: 0, z: CAM_Z };
+  if (focusNode?.anchor) { tgt.x = focusNode.anchor[0] * 0.35; tgt.y = focusNode.anchor[1] * 0.35; tgt.z = CAM_Z - 1.8; }
+  else if (motion && pointer.inside && pointer.fine) { tgt.x = pointer.nx * 0.2; tgt.y = pointer.ny * 0.14; }
+  const kc = motion ? 1 - Math.exp(-dt * 1.8) : 1;
+  cam.x += (tgt.x - cam.x) * kc; cam.y += (tgt.y - cam.y) * kc; cam.z += (tgt.z - cam.z) * kc;
+  dim += ((focusNode ? 1 : 0) - dim) * (motion ? 1 - Math.exp(-dt * 2.4) : 1);
+
+  for (const n of nodes.values()) {
+    const a = n.anchor;
+    if (!a) continue;
+    const amp = motion ? 0.06 : 0;
+    const x = a[0] + Math.sin(simT * 0.19 + n.phase) * amp, y = a[1] + Math.cos(simT * 0.15 + n.phase * 1.3) * amp;
+    const z = a[2] + Math.sin(simT * 0.11 + n.phase * 0.7) * amp * 2;
+    let be = 1;
+    if (n.born) {
+      const b = motion ? clamp((now - n.born) / 1300, 0, 1) : 1;
+      be = b * b * (3 - 2 * b);
+      if (b >= 1) n.born = 0;
+    }
+    const s = project(x, y, z);
+    if (!s) { n.li.style.opacity = '0'; continue; }
+    n.gather += ((n.hover ? 1 : 0) - n.gather) * (1 - Math.exp(-dt * (motion ? 3 : 60)));
+    let o = (0.62 + 0.38 * clamp((z + 4.2) / 5.6, 0, 1)) * be;
+    o = lerp(o, 1, n.gather * 0.8);
+    n.li.style.transform = `translate3d(${s.x.toFixed(1)}px, ${s.y.toFixed(1)}px, 0) translate(-50%, -50%) scale(${(scaleFor(s.k) * (1 + n.gather * 0.04)).toFixed(3)})`;
+    n.li.style.opacity = o.toFixed(3);
+    const bl = scaleFor(s.k) > s.k + 0.001 ? 0 : blurFor(z) * (1 - n.gather); // no blur once a title sits at the size floor
+    n.li.style.filter = bl > 0.05 ? `blur(${bl.toFixed(2)}px)` : '';
+    n.li.style.zIndex = String(100 + Math.round(z * 10));
+  }
+  drawFx(now, dt);
+  if (gl) {
+    const hh = cam.z * TAN;
+    gl.render({ simT, clock: now / 1000, dim, focus: focusNode?.anchor, mouse: pointer.inside && pointer.fine ? [cam.x + pointer.nx * hh * (W / H), cam.y + pointer.ny * hh] : [999, 999] });
+  }
+}
+
+/* ------------------------------------------------------- views */
+const storyView = $('#story-view'), archiveView = $('#archive-view'), composeView = $('#compose-view');
+let current = null, openT = 0;
+function closeView(d) {
+  if (!d.open) return;
+  if (!motion) { d.close(); return; }
+  d.classList.add('is-closing');
+  d.addEventListener('animationend', () => { d.classList.remove('is-closing'); d.close(); }, { once: true });
+}
+document.querySelectorAll('.view [data-close]').forEach((b) => b.addEventListener('click', () => closeView(b.closest('dialog'))));
+storyView.addEventListener('close', () => { current = null; focusNode = null; document.body.classList.remove('is-reading'); });
+composeView.addEventListener('close', () => document.body.classList.remove('is-reading'));
+archiveView.addEventListener('close', () => { if (!storyView.open) document.body.classList.remove('is-reading'); });
+
+function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+function fmtDate(ms) { return ms ? new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : ''; }
+
+function renderStory(s) {
+  $('#s-title').textContent = s.title;
+  const meta = $('#s-meta');
+  meta.replaceChildren();
+  const where = [s.discipline, s.context].filter(Boolean);
+  if (where.length) { meta.append(el('b', null, where[0])); if (where[1]) meta.append(', ' + where[1]); meta.append(el('br')); }
+  meta.append(s.example ? 'A fictional example written for this archive.' : [store.mode === 'local' ? 'Saved' : 'Shared', s.by ? 'by ' + s.by : '', s.createdAt ? 'on ' + fmtDate(s.createdAt) : ''].filter(Boolean).join(' ') + '.');
+  $('#s-answers').replaceChildren(...ANSWERS.filter(([k]) => s[k]).map(([k, label]) => { const d = el('section', 'answer'); d.append(el('h3', null, label), el('p', null, s[k])); return d; }));
+  $('#s-media').replaceChildren(...s.media.map((m) => {
+    const f = el('figure'); const img = new Image(); img.src = imgSrc(m); img.alt = KINDS[m.kind] + ' from this story'; img.loading = 'lazy'; img.decoding = 'async';
+    img.addEventListener('error', () => { img.replaceWith(el('div', null)); });
+    f.append(img, el('figcaption', null, KINDS[m.kind])); return f;
+  }));
+  const foot = $('#s-foot'); foot.replaceChildren();
+  if (store.canRemove(s)) {
+    const b = el('button', 'text-btn', 'Remove this story'); b.type = 'button';
+    b.addEventListener('click', async () => {
+      if (b.dataset.armed !== '1') { b.dataset.armed = '1'; b.textContent = 'Press again to remove it for everyone'; return; }
+      b.disabled = true;
+      try { await store.remove(s); closeView(storyView); announce('The story was removed.'); }
+      catch (e) { b.disabled = false; b.textContent = 'It could not be removed. Try again.'; }
+    });
+    foot.append(b);
+  }
+  storyView.scrollTop = 0;
+}
+function openStory(id, fromField) {
+  const s = byId(id);
+  if (!s) return;
+  current = s;
+  focusNode = nodes.get(id) || null;
+  document.body.classList.add('is-reading');
+  hoveringShare = false;
+  if (!input.value.trim()) closeLine();
+  renderStory(s);
+  clearTimeout(openT);
+  openT = setTimeout(() => { if (!storyView.open) storyView.showModal(); }, fromField && motion ? 700 : 0);
+}
+function stepStory(dir) {
+  const i = stories.findIndex((x) => x.id === current?.id);
+  const n = stories[(i + dir + stories.length) % stories.length];
+  current = n; focusNode = nodes.get(n.id) || null; renderStory(n);
+}
+$('#prev').addEventListener('click', () => stepStory(-1));
+$('#next').addEventListener('click', () => stepStory(1));
+
+function renderArchive() {
+  $('#count').textContent = String(stories.length);
+  $('#a-list').replaceChildren(...stories.map((s) => {
+    const li = el('li'); const b = el('button', 'archive__item'); b.type = 'button';
+    b.append(el('span', null, s.title), el('span', null, s.example ? s.discipline + ', fictional example' : [s.discipline, fmtDate(s.createdAt)].filter(Boolean).join(', ')));
+    b.addEventListener('click', () => { archiveView.close(); openStory(s.id, false); });
+    li.append(b); return li;
+  }));
+}
+$('#open-archive').addEventListener('click', () => { renderArchive(); document.body.classList.add('is-reading'); archiveView.showModal(); });
+
+/* compose */
+const composeForm = $('#compose'), thumbs = $('#c-thumbs');
+let pending = [];
+let attachingPhotos = false;
+let savingMoment = false;
+function openCompose(title) {
+  $('#c-title').value = title;
+  document.body.classList.add('is-reading');
+  $('#c-status').textContent = '';
+  $('#c-images').closest('.f').hidden = !store.canUpload();
+  composeView.showModal();
+  composeView.scrollTop = 0;
+  $('#c-discipline').focus({ preventScroll: true });
+}
+function renderThumbs() {
+  thumbs.replaceChildren(...pending.map((m) => {
+    const li = el('li', 'thumb'); const img = new Image(); img.src = m.preview; img.alt = '';
+    const sel = el('select'); sel.setAttribute('aria-label', 'What this image shows');
+    for (const [k, v] of Object.entries(KINDS)) { const o = el('option', null, v); o.value = k; sel.append(o); }
+    sel.value = m.kind; sel.addEventListener('change', () => { m.kind = sel.value; });
+    const rm = el('button', 'text-btn', 'Remove'); rm.type = 'button';
+    rm.addEventListener('click', () => removePhoto(m));
+    li.append(img, sel, rm); return li;
+  }));
+  linePhotos.hidden = pending.length === 0;
+  shareEl.classList.toggle('has-photos', pending.length > 0);
+  linePhotos.replaceChildren(...pending.map((m, index) => {
+    const item = el('div', 'line-photo');
+    const image = new Image();
+    image.src = m.preview;
+    image.alt = `Attached photo ${index + 1}`;
+    const remove = el('button');
+    remove.type = 'button';
+    remove.setAttribute('aria-label', `Remove photo ${index + 1}`);
+    remove.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 4 8 8M12 4l-8 8"/></svg>';
+    remove.addEventListener('click', () => {
+      if (removePhoto(m)) photoBtn.focus({ preventScroll: true });
+    });
+    item.append(image, remove);
+    return item;
+  }));
+}
+function encodePhoto(source, width, height) {
+  const max = store.mode === 'local' ? 1000 : 1800;
+  const k = Math.min(1, max / Math.max(width, height));
+  const c = document.createElement('canvas');
+  c.width = Math.max(1, Math.round(width * k));
+  c.height = Math.max(1, Math.round(height * k));
+  c.getContext('2d').drawImage(source, 0, 0, c.width, c.height);
+  return new Promise((r, j) => c.toBlob((b) => (b ? r(b) : j(new Error('encode'))), 'image/jpeg', 0.85));
+}
+async function shrink(file) {
+  const bitmap = await createImageBitmap(file);
+  try { return await encodePhoto(bitmap, bitmap.width, bitmap.height); }
+  finally { bitmap.close(); }
+}
+function removePhoto(photo) {
+  const index = pending.indexOf(photo);
+  if (savingMoment || index < 0) return false;
+  URL.revokeObjectURL(photo.preview);
+  pending.splice(index, 1);
+  renderThumbs();
+  return true;
+}
+function addPhoto(blob) {
+  pending.push({ blob, preview: URL.createObjectURL(blob), kind: 'photo' });
+}
+async function attachFiles(files) {
+  if (attachingPhotos || savingMoment) return 0;
+  attachingPhotos = true;
+  let added = 0;
+  try {
+    for (const file of files) {
+      if (pending.length >= 4) break;
+      try { addPhoto(await shrink(file)); added++; } catch { /* skip unreadable images */ }
+    }
+    renderThumbs();
+    return added;
+  } finally { attachingPhotos = false; }
+}
+const imagesHint = 'Up to four. Shown in black and white.';
+function skippedPhotos(count) {
+  return `${count} image${count === 1 ? ' was' : 's were'} left out. Add up to four supported images.`;
+}
+$('#c-images').addEventListener('change', async (e) => {
+  const files = [...e.target.files]; e.target.value = '';
+  const skipped = files.length - await attachFiles(files);
+  $('#c-images-hint').textContent = skipped ? skippedPhotos(skipped) : imagesHint;
+});
+
+/* camera and image picker for the bottom input */
+const photoDialog = $('#photo-dialog'), photoVideo = $('#photo-video'), photoStatus = $('#photo-status');
+const photoStart = $('#photo-start'), photoTake = $('#photo-take'), photoChoose = $('#photo-choose');
+const photoNative = $('#photo-native'), photoFile = $('#photo-file');
+const usesNativeCamera = navigator.userAgentData?.mobile || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+let cameraStream = null;
+let cameraRequest = 0;
+function showPhotoStatus(message) {
+  photoStatus.hidden = !message;
+  photoStatus.textContent = message;
+}
+function releaseCamera() {
+  cameraRequest++;
+  cameraStream?.getTracks().forEach((track) => track.stop());
+  cameraStream = null;
+  photoVideo.srcObject = null;
+  photoVideo.hidden = true;
+  photoStart.disabled = false;
+  photoStart.hidden = false;
+  photoTake.disabled = true;
+  photoTake.hidden = true;
+}
+function closePhotoDialog() {
+  releaseCamera();
+  photoDialog.close();
+}
+photoBtn.addEventListener('click', () => {
+  if (savingMoment) return;
+  if (!store.canWrite) { announce(store.why); return; }
+  if (!store.canUpload()) { announce('Image attachments are unavailable for this archive.'); return; }
+  if (pending.length >= 4) { announce('You can attach up to four images. Remove one to add another.'); return; }
+  if (attachingPhotos) { announce('Wait for the photos to finish attaching.'); return; }
+  cancelVoice();
+  showPhotoStatus('');
+  photoDialog.showModal();
+});
+$('#photo-close').addEventListener('click', closePhotoDialog);
+photoDialog.addEventListener('cancel', releaseCamera);
+photoChoose.addEventListener('click', () => photoFile.click());
+photoStart.addEventListener('click', async () => {
+  if (usesNativeCamera) { photoNative.click(); return; }
+  if (!navigator.mediaDevices?.getUserMedia) {
+    showPhotoStatus('The camera is unavailable here. Choose an image instead.');
+    return;
+  }
+  const request = ++cameraRequest;
+  photoStart.disabled = true;
+  showPhotoStatus('Starting camera…');
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' } } });
+    if (request !== cameraRequest || !photoDialog.open) {
+      stream.getTracks().forEach((track) => track.stop());
+      return;
+    }
+    cameraStream = stream;
+    photoVideo.srcObject = stream;
+    photoVideo.hidden = false;
+    photoStart.hidden = true;
+    photoTake.hidden = false;
+    await photoVideo.play();
+    if (request !== cameraRequest || !photoDialog.open) return;
+    photoTake.disabled = false;
+    photoTake.focus();
+    showPhotoStatus('');
+  } catch (error) {
+    if (request !== cameraRequest || !photoDialog.open) return;
+    releaseCamera();
+    showPhotoStatus(error.name === 'NotAllowedError'
+      ? 'Allow camera access in your browser, or choose an image.'
+      : 'The camera could not start. Choose an image instead.');
+  }
+});
+photoTake.addEventListener('click', async () => {
+  if (!photoVideo.videoWidth || attachingPhotos || pending.length >= 4) return;
+  attachingPhotos = true;
+  photoTake.disabled = true;
+  photoChoose.disabled = true;
+  try {
+    addPhoto(await encodePhoto(photoVideo, photoVideo.videoWidth, photoVideo.videoHeight));
+    renderThumbs();
+    closePhotoDialog();
+    announce('Photo attached.');
+  } catch {
+    showPhotoStatus('The photo could not be attached. Try again or choose an image.');
+  } finally {
+    attachingPhotos = false;
+    photoTake.disabled = !cameraStream;
+    photoChoose.disabled = false;
+  }
+});
+for (const picker of [photoNative, photoFile]) {
+  picker.addEventListener('change', async () => {
+    const files = [...picker.files];
+    picker.value = '';
+    if (!files.length) return;
+    releaseCamera();
+    photoStart.disabled = true;
+    photoChoose.disabled = true;
+    showPhotoStatus('Attaching images…');
+    const added = await attachFiles(files);
+    photoStart.disabled = false;
+    photoChoose.disabled = false;
+    const skipped = files.length - added;
+    if (!added && photoDialog.open) {
+      showPhotoStatus(skippedPhotos(skipped));
+      return;
+    }
+    if (photoDialog.open) closePhotoDialog();
+    announce(skipped ? skippedPhotos(skipped) : added === 1 ? 'Photo attached.' : `${added} photos attached.`);
+  });
+}
+addEventListener('pagehide', () => { releaseCamera(); cancelVoice(); });
+
+function fieldErr(id, msg) {
+  const f = $('#' + id), e = $('#' + id + '-err');
+  if (msg) { f.setAttribute('aria-invalid', 'true'); f.setAttribute('aria-describedby', id + '-err'); e.textContent = msg; }
+  else { f.removeAttribute('aria-invalid'); e.textContent = ''; }
+  return !msg;
+}
+['c-title', 'c-happened', 'c-consent'].forEach((id) => $('#' + id).addEventListener('input', () => fieldErr(id, '')));
+composeForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const st = $('#c-status');
+  if (savingMoment) return;
+  if (attachingPhotos) { st.textContent = 'Wait for the photos to finish attaching.'; return; }
+  const v = (id) => $('#' + id).value.trim();
+  const ok = [
+    fieldErr('c-title', v('c-title').length < 3 ? 'Give the moment a title of a few words.' : ''),
+    fieldErr('c-happened', v('c-happened').length < 20 ? 'Say what happened, in a sentence or two.' : ''),
+    fieldErr('c-consent', $('#c-consent').checked ? '' : 'Tick this to confirm the moment is yours and written by you.'),
+  ];
+  if (ok.includes(false)) { composeForm.querySelector('[aria-invalid="true"]')?.focus(); return; }
+  if (!store.canWrite) { st.textContent = store.why; return; }
+  const btn = $('#release');
+  savingMoment = true;
+  btn.disabled = true; btn.setAttribute('aria-busy', 'true');
+  try {
+    const media = [];
+    for (let i = 0; i < pending.length; i++) {
+      st.textContent = `Uploading image ${i + 1} of ${pending.length}`;
+      const r = await store.upload(pending[i].blob);
+      media.push({ ...r, kind: pending[i].kind });
+    }
+    st.textContent = 'Saving';
+    const id = store.newId();
+    const data = { title: v('c-title'), discipline: v('c-discipline'), context: v('c-context'), happened: v('c-happened'), noticed: v('c-noticed'), influence: v('c-influence'), outcome: v('c-outcome'), by: v('c-by'), media, createdAt: Date.now(), uid: store.uid || '' };
+    pendingSpawn = id;
+    await store.add(id, data);
+    closeView(composeView);
+    hoveringShare = false; input.value = ''; closeLine();
+    pending.forEach((m) => URL.revokeObjectURL(m.preview)); pending = []; renderThumbs();
+    composeForm.reset(); st.textContent = '';
+    $('#c-images-hint').textContent = imagesHint;
+    announce('Your moment has joined the archive.');
+  } catch (err) {
+    pendingSpawn = null;
+    const code = err?.code;
+    const msg = code === 'quota_exceeded' || code === 'quota_or_state' ? 'The archive is full right now. Try again without images, or ask its owner to make room.'
+      : code === 'too_large' ? 'One image is too large. Try a smaller one.'
+      : code === 'not_granted' ? 'Images need Contributor access. Remove them and release the story without.'
+      : err?.name === 'QuotaExceededError' ? 'This browser has no room for these images. Try fewer.'
+      : 'That did not save. Check your connection and release it again.';
+    if (!composeView.open) { document.body.classList.add('is-reading'); composeView.showModal(); }
+    st.textContent = msg;
+  } finally { savingMoment = false; btn.disabled = false; btn.removeAttribute('aria-busy'); }
+});
+
+/* a new story arriving from the sphere */
+function spawnFromSphere(n) {
+  place([n]);
+  n.b.classList.add('is-new'); setTimeout(() => n.b.classList.remove('is-new'), 9000);
+  if (!motion || !n.anchor) { gl?.addCluster(n.s.id, n.anchor, -100); return; }
+  const start = performance.now() + 900; // let the line fold back into the sphere first
+  n.born = start + 1300;
+  n.li.style.opacity = '0';
+  const target = project(n.anchor[0], n.anchor[1], n.anchor[2]);
+  setTimeout(() => { sphere.pulse = 1; }, 700);
+  for (let i = 0; i < 170; i++) {
+    const a = Math.random() * 6.283, r = Math.random() * 20;
+    const x0 = sphere.cx + Math.cos(a) * r, y0 = sphere.cy + Math.sin(a) * r * 0.8;
+    const x1 = target.x + (Math.random() - 0.5) * n.b.offsetWidth * target.k, y1 = target.y + (Math.random() - 0.5) * 16;
+    const mx = (x0 + x1) / 2 + (Math.random() - 0.5) * 220, my = Math.min(y0, y1) - 60 - Math.random() * 120;
+    emit.push({ x0, y0, x1, y1, cx: mx, cy: my, t0: start + Math.random() * 380, dur: 1100 + Math.random() * 700, al: 0.35 + Math.random() * 0.5, sz: Math.random() < 0.15 ? 1.6 : 1 });
+  }
+  gl?.addCluster(n.s.id, n.anchor, gl.clock() + 2.2);
+}
+
+/* sync the field with the archive */
+function sync(list) {
+  stories = [...EXAMPLES, ...list];
+  const ids = new Set(stories.map((s) => s.id));
+  for (const id of [...nodes.keys()]) if (!ids.has(id)) removeNode(id);
+  const fresh = [];
+  for (const s of stories) {
+    const n = nodes.get(s.id);
+    if (n) { n.s = s; n.b.textContent = s.title; continue; }
+    const node = addNode(s);
+    if (s.id === pendingSpawn) { pendingSpawn = null; spawnFromSphere(node); }
+    else fresh.push(node);
+  }
+  if (fresh.length) { place(fresh); for (const n of fresh) gl?.addCluster(n.s.id, n.anchor, -100); }
+  $('#count').textContent = String(stories.length);
+  if (archiveView.open) renderArchive();
+}
+
+/* motion toggle */
+const motionBtn = $('#motion');
+function syncMotion() { motionBtn.textContent = motion ? 'Pause motion' : 'Play motion'; motionBtn.setAttribute('aria-pressed', String(!motion)); }
+motionBtn.addEventListener('click', () => { motion = !motion; syncMotion(); });
+reduceMQ.addEventListener('change', () => { motion = !reduceMQ.matches; syncMotion(); });
+syncMotion();
+
+/* boot */
+function resize() {
+  W = innerWidth; H = innerHeight; DPR = Math.min(devicePixelRatio || 1, 2);
+  sizeFx(); gl?.resize(); sampleName(); place([...nodes.values()]);
+}
+let rT = 0;
+addEventListener('resize', () => { clearTimeout(rT); rT = setTimeout(resize, 120); });
+sizeFx();
+for (const s of stories) addNode(s);
+$('#count').textContent = String(stories.length);
+(document.fonts ? document.fonts.ready : Promise.resolve()).then(async () => {
+  sampleName();
+  place([...nodes.values()]);
+  requestAnimationFrame(tick);
+  gl = await initGL();
+  if (gl) for (const n of nodes.values()) gl.addCluster(n.s.id, n.anchor, -100);
+  await store.init();
+  store.subscribe(sync);
+});
+</script>
+
+</body></html>
