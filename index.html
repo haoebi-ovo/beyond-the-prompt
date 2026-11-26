@@ -281,7 +281,7 @@ body.is-reading #labels { opacity: 0; }
       <button type="button" class="text-btn" data-close><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12H5M10 6.5 4.5 12 10 17.5"/></svg>Back to the field</button>
     </div>
     <h2 class="archive__title" id="a-title" tabindex="-1" autofocus>The archive</h2>
-    <p><button type="button" class="text-btn" id="owner-login">Site owner sign in</button></p>
+    <p><button type="button" class="text-btn" id="owner-login">Administrator sign in</button></p>
     <p id="owner-status" role="status"></p>
     <ul class="archive__list" id="a-list"></ul>
   </div>
@@ -438,9 +438,9 @@ const store = {
       this.ownerAccount = auth.getAuth(ownerApp);
       this.ownerDatabase = db.getDatabase(ownerApp);
       auth.onAuthStateChanged(this.ownerAccount, user => {
-        this.owner = !!user?.emailVerified && user.email === 'wuhao2777@gmail.com';
-        $('#owner-login').textContent = this.owner ? 'Sign out of site management' : 'Site owner sign in';
-        $('#owner-status').textContent = this.owner ? 'You can remove any published story.' : user ? 'This account does not have site management access.' : '';
+        this.owner = !!user?.emailVerified && ['wuhao2777@gmail.com', 'fangqiaoyunyyds@gmail.com', 'pc3062600688@gmail.com'].includes(user.email);
+        $('#owner-login').textContent = this.owner ? 'Sign out of site management' : 'Administrator sign in';
+        $('#owner-status').textContent = this.owner ? 'You can edit or remove any published story.' : user ? 'This account does not have site management access.' : '';
         if (current && storyView.open) renderStory(current);
       });
       this.database = db.getDatabase(instance);
@@ -470,7 +470,7 @@ const store = {
   },
   newId() { return this.api.push(this.api.ref(this.database, 'stories')).key; },
   canUpload() { return this.canWrite; },
-  canEdit(story) { return !story.example && !!story.uid && story.uid === this.uid; },
+  canEdit(story) { return !story.example && !!story.uid && (this.owner || story.uid === this.uid); },
   canRemove(story) { return !story.example && !!story.uid && (this.owner || this.canEdit(story)); },
   async upload(blob) {
     return { src: await new Promise((resolve,reject) => {
@@ -485,7 +485,7 @@ const store = {
     const changes = {};
     const media = data.media.map((image, i) => {
       const key = id + '_' + i;
-      changes['photos/' + key] = { uid: this.uid, src: image.src };
+      changes['photos/' + key] = { uid: original ? original.uid : this.uid, src: image.src };
       return { key, kind: image.kind };
     });
     if (original) {
@@ -493,14 +493,15 @@ const store = {
         if (image.key && !media.some(item => item.key === image.key)) changes['photos/' + image.key] = null;
       }
     }
-    changes['stories/' + id] = { ...data, uid: this.uid, createdAt: original ? original.createdAt : this.api.serverTimestamp(), media };
-    await this.api.update(this.api.ref(this.database), changes);
+    changes['stories/' + id] = { ...data, uid: original ? original.uid : this.uid, createdAt: original ? original.createdAt : this.api.serverTimestamp(), media };
+    const database = original && this.owner ? this.ownerDatabase : this.database;
+    await this.api.update(this.api.ref(database), changes);
   },
   async remove(story) {
     if (!this.connected || !this.canRemove(story)) throw new Error('unavailable');
     const changes = { ['stories/' + story.id]: null };
     for (const image of story.media) if (image.key) changes['photos/' + image.key] = null;
-    const database = this.owner && !this.canEdit(story) ? this.ownerDatabase : this.database;
+    const database = this.owner ? this.ownerDatabase : this.database;
     await this.api.update(this.api.ref(database), changes);
   },
 };
