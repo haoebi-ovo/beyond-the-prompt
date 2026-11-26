@@ -340,7 +340,7 @@ body.is-reading #labels { opacity: 0; }
       </div>
       <div class="f f--wide consent">
         <input type="checkbox" id="c-consent" name="consent" required>
-        <label for="c-consent">This happened to me, and I wrote it myself without AI.</label>
+        <label for="c-consent">This happened to me, and I wrote it myself without AI. I agree to share this story and its photos publicly.</label>
         <p class="f__err" id="c-consent-err"></p>
       </div>
     </div>
@@ -351,6 +351,7 @@ body.is-reading #labels { opacity: 0; }
   </form>
 </dialog>
 
+<script src="./firebase-config.js"></script>
 <script type="module">
 /* ------------------------------------------------------------------ data */
 const EXAMPLES = [
@@ -401,10 +402,10 @@ const clean = (v, n) => (typeof v === 'string' ? v.slice(0, n) : '');
 function sanitize(id, d) {
   if (!d || typeof d.title !== 'string' || !d.title.trim()) return null;
   const media = Array.isArray(d.media) ? d.media.slice(0, 4).map((m) => ({
-    id: typeof m?.id === 'string' && /^[0-9a-f]{32}$/i.test(m.id) ? m.id : null,
+    key: typeof m?.key === 'string' && /^[A-Za-z0-9_-]{20}_[0-3]$/.test(m.key) ? m.key : null,
     src: typeof m?.src === 'string' && m.src.startsWith('data:image/') ? m.src : null,
     kind: KINDS[m?.kind] ? m.kind : 'photo',
-  })).filter((m) => m.id || m.src) : [];
+  })).filter((m) => m.key || m.src) : [];
   return {
     id, example: false, title: clean(d.title, 80), discipline: clean(d.discipline, 60), context: clean(d.context, 90),
     happened: clean(d.happened, 1200), noticed: clean(d.noticed, 1200), influence: clean(d.influence, 1200), outcome: clean(d.outcome, 1200),
@@ -413,60 +414,86 @@ function sanitize(id, d) {
 }
 
 const store = {
-  mode: 'local', db: null, assets: null, user: null, uid: null, owner: false, canWrite: true, why: '', cb: null,
-  async init() {
-    const c = window.claude;
-    if (!c || typeof c.use !== 'function') return; // local preview
-    this.mode = 'shared';
-    const [db, user, assets] = await Promise.all([c.use('db'), c.use('user'), c.use('assets')]);
-    this.db = db; this.user = user; this.assets = assets;
-    if (!db) { this.canWrite = false; this.why = 'Sign in with access to this archive to add a moment.'; return; }
-    try { this.uid = (await user?.id()) || null; } catch (e) { this.uid = null; }
-    try { this.owner = (await user?.isOwner()) ?? false; } catch (e) { this.owner = false; }
-    try { const w = await user?.can('data.write'); if (w === false) { this.canWrite = false; this.why = 'You can read this archive. Adding a moment needs Contributor access from its owner.'; } } catch (e) { /* unknown: keep inputs */ }
-  },
-  subscribe(cb) {
-    this.cb = cb;
-    if (this.mode === 'local') { cb(this.readLocal()); return; }
-    if (!this.db) { cb([]); return; }
-    let answered = false;
-    const timer = setTimeout(() => { if (!answered) announce('The shared archive is slow to answer. The examples are here meanwhile.'); }, 10000);
-    this.db.collection('stories').orderBy('createdAt', 'asc').limit(600).onSnapshot(
-      (snap) => { if (!snap.metadata.fromCache) { answered = true; clearTimeout(timer); } cb(snap.docs.map((d) => sanitize(d.id, d.data())).filter(Boolean)); },
-      () => { answered = true; clearTimeout(timer); announce('The shared archive cannot be reached right now. The examples are still here.'); },
-    );
-  },
+  mode: 'cloud', uid: null, owner: false, canWrite: false, connected: false,
+  why: 'Connecting to the shared archive. Please try again shortly.',
   readLocal() {
-    try { const a = JSON.parse(localStorage.getItem('btp/stories/v2') || '[]'); return Array.isArray(a) ? a.map((d) => sanitize(d.id, d)).filter(Boolean) : []; } catch (e) { return []; }
+    try { return JSON.parse(localStorage.getItem('btp/stories/v2') || '[]').map(d => sanitize(d.id, d)).filter(Boolean); }
+    catch { return []; }
   },
-  newId() { return this.db ? this.db.collection('stories').doc().id : 'l' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); },
-  async add(id, data) {
-    if (this.mode === 'local') {
-      const list = this.readLocal(); list.push({ id, ...data });
-      localStorage.setItem('btp/stories/v2', JSON.stringify(list));
-      this.cb?.(this.readLocal());
-      return;
+  async init() {
+    try {
+      const config = window.BTP_FIREBASE_CONFIG;
+      if (!config?.databaseURL || !config.apiKey) throw new Error('configuration');
+      const [app, auth, db] = await Promise.all([
+        import('https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js'),
+        import('https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js'),
+        import('https://www.gstatic.com/firebasejs/11.10.0/firebase-database.js'),
+      ]);
+      const instance = app.initializeApp(config);
+      this.api = db;
+      this.database = db.getDatabase(instance);
+      db.onValue(db.ref(this.database, '.info/connected'), snap => { this.connected = snap.val() === true; });
+      const account = auth.getAuth(instance);
+      await account.authStateReady();
+      this.uid = (account.currentUser || (await auth.signInAnonymously(account)).user).uid;
+      this.canWrite = true;
+    } catch {
+      this.why = 'Publishing is unavailable. Check the archive connection and configuration.';
+      announce(this.why);
     }
-    await this.db.collection('stories').doc(id).set(data);
+  },
+  subscribe(callback) {
+    const local = this.readLocal();
+    callback(local);
+    if (!this.database) return;
+    const { onValue, ref } = this.api;
+    onValue(ref(this.database, 'stories'), snap => {
+      const cloud = [];
+      snap.forEach(child => {
+        const story = sanitize(child.key, child.val());
+        if (story) cloud.push(story);
+      });
+      callback([...local, ...cloud.sort((a,b) => a.createdAt-b.createdAt)]);
+    }, () => announce('Unable to read the shared archive. Check the database rules.'));
+  },
+  newId() { return this.api.push(this.api.ref(this.database, 'stories')).key; },
+  canUpload() { return this.canWrite; },
+  canRemove(story) { return !story.example && !!this.uid && story.uid === this.uid; },
+  async upload(blob) {
+    return { src: await new Promise((resolve,reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(reader.error);
+      reader.onload = () => resolve(reader.result);
+      reader.readAsDataURL(blob);
+    }) };
+  },
+  async add(id, data) {
+    if (!this.canWrite || !this.connected) throw new Error('offline');
+    const changes = {};
+    const media = data.media.map((image, i) => {
+      const key = id + '_' + i;
+      changes['photos/' + key] = { uid: this.uid, src: image.src };
+      return { key, kind: image.kind };
+    });
+    changes['stories/' + id] = { ...data, uid: this.uid, createdAt: this.api.serverTimestamp(), media };
+    await this.api.update(this.api.ref(this.database), changes);
   },
   async remove(story) {
-    if (this.mode === 'local') {
-      localStorage.setItem('btp/stories/v2', JSON.stringify(this.readLocal().filter((s) => s.id !== story.id)));
-      this.cb?.(this.readLocal()); return;
-    }
-    await this.db.doc('stories/' + story.id).delete();
-    for (const m of story.media) if (m.id && this.assets) { try { await this.assets.delete(m.id); } catch (e) { /* not ours, or already gone */ } }
+    if (!this.connected || !this.canRemove(story)) throw new Error('unavailable');
+    const changes = { ['stories/' + story.id]: null };
+    for (const image of story.media) if (image.key) changes['photos/' + image.key] = null;
+    await this.api.update(this.api.ref(this.database), changes);
   },
-  async upload(blob) {
-    if (this.mode === 'local') return { src: await new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); }) };
-    if (!this.assets) throw { code: 'not_granted' };
-    const res = await this.assets.upload(blob, { type: 'image/jpeg' });
-    return { id: res.id };
-  },
-  canUpload() { return this.mode === 'local' || !!this.assets; },
-  canRemove(s) { return !s.example && (this.mode === 'local' || this.owner || (!!this.uid && s.uid === this.uid)); },
 };
-const imgSrc = (m) => (m.id ? '/_blob/' + m.id : m.src);
+async function loadPhoto(img, media) {
+  if (media.src) { img.src = media.src; return; }
+  try {
+    const snapshot = await store.api.get(store.api.ref(store.database, 'photos/' + media.key + '/src'));
+    const src = snapshot.val();
+    if (typeof src === 'string' && src.startsWith('data:image/jpeg;base64,')) img.src = src;
+    else img.alt = 'Photo unavailable';
+  } catch { img.alt = 'Photo unavailable'; }
+}
 
 /* ------------------------------------------------------- shared state */
 let stories = [...EXAMPLES];
@@ -1081,10 +1108,10 @@ function renderStory(s) {
   meta.replaceChildren();
   const where = [s.discipline, s.context].filter(Boolean);
   if (where.length) { meta.append(el('b', null, where[0])); if (where[1]) meta.append(', ' + where[1]); meta.append(el('br')); }
-  meta.append(s.example ? 'A fictional example written for this archive.' : [store.mode === 'local' ? 'Saved' : 'Shared', s.by ? 'by ' + s.by : '', s.createdAt ? 'on ' + fmtDate(s.createdAt) : ''].filter(Boolean).join(' ') + '.');
+  meta.append(s.example ? 'A fictional example written for this archive.' : [s.uid ? 'Shared' : 'Saved on this device', s.by ? 'by ' + s.by : '', s.createdAt ? 'on ' + fmtDate(s.createdAt) : ''].filter(Boolean).join(' ') + '.');
   $('#s-answers').replaceChildren(...ANSWERS.filter(([k]) => s[k]).map(([k, label]) => { const d = el('section', 'answer'); d.append(el('h3', null, label), el('p', null, s[k])); return d; }));
   $('#s-media').replaceChildren(...s.media.map((m) => {
-    const f = el('figure'); const img = new Image(); img.src = imgSrc(m); img.alt = KINDS[m.kind] + ' from this story'; img.loading = 'lazy'; img.decoding = 'async';
+    const f = el('figure'); const img = new Image(); loadPhoto(img, m); img.alt = KINDS[m.kind] + ' from this story'; img.loading = 'lazy'; img.decoding = 'async';
     img.addEventListener('error', () => { img.replaceWith(el('div', null)); });
     f.append(img, el('figcaption', null, KINDS[m.kind])); return f;
   }));
@@ -1175,7 +1202,7 @@ function renderThumbs() {
   }));
 }
 function encodePhoto(source, width, height) {
-  const max = store.mode === 'local' ? 1000 : 1800;
+  const max = 1000;
   const k = Math.min(1, max / Math.max(width, height));
   const c = document.createElement('canvas');
   c.width = Math.max(1, Math.round(width * k));
@@ -1448,10 +1475,10 @@ $('#count').textContent = String(stories.length);
   sampleName();
   place([...nodes.values()]);
   requestAnimationFrame(tick);
+  store.init().then(() => store.subscribe(sync));
   gl = await initGL();
   if (gl) for (const n of nodes.values()) gl.addCluster(n.s.id, n.anchor, -100);
-  await store.init();
-  store.subscribe(sync);
+
 });
 </script>
 
