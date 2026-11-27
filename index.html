@@ -188,9 +188,10 @@ body.is-reading #labels { opacity: 0; }
   .note { left: 1rem; right: 1rem; bottom: calc(env(safe-area-inset-bottom, 0px) + 0.6rem); max-width: none; font-size: 0.75rem; text-align: center; text-wrap: balance; }
   #field { opacity: 0.7; }
   .share { height: 3.75rem; }
-  .line { padding: 0 0.75rem; }
+  .line { padding: 0 0.5rem 0 0.75rem; }
   .line #moment { padding: 1.125rem 0.25rem 1rem 0; font-size: 1rem; line-height: 1.4; }
-  .line .send { width: 2.75rem; margin-right: 0; }
+  .line .line-tool { width: 2.5rem; }
+  .line .send { width: 2.5rem; margin-right: 0; }
   .chrome { gap: 1.25rem; }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -1587,7 +1588,7 @@ syncMotion();
 /* boot */
 const momentWidthMQ = matchMedia('(max-width: 46rem)');
 function syncMomentWrapping() {
-  input.placeholder = momentWidthMQ.matches ? 'Share a moment…' : 'Tell us about a moment that inspired you...';
+  input.placeholder = momentWidthMQ.matches ? 'What inspired you?' : 'Tell us about a moment that inspired you...';
   sampleName();
 }
 momentWidthMQ.addEventListener('change', syncMomentWrapping);
