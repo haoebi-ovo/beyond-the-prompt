@@ -77,9 +77,8 @@ body.is-reading #labels { opacity: 0; }
 .line { position: absolute; inset: 0; display: flex; align-items: center; border-radius: 999px; opacity: 0; pointer-events: none; transition: opacity 0.5s var(--ease); }
 .share.is-open.is-ready .line { opacity: 1; pointer-events: auto; }
 .line #moment { flex: 1; min-width: 0; height: 100%; padding: 1rem 0.25rem 0.75rem 1.5rem; border: 0; border-radius: 0; background: transparent; color: var(--ink); font-size: 0.9375rem; font-weight: 300; line-height: 1.5; letter-spacing: 0.01em; outline: none; resize: none; white-space: pre; overflow-wrap: normal; overflow-y: hidden; }
-.moment-measure { position: absolute; top: 0; left: 0; visibility: hidden; pointer-events: none; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.4; }
-.line textarea::placeholder { color: var(--grey); opacity: 1; }
-.line:has(textarea:focus-visible) { outline: 1px solid var(--hair-strong); outline-offset: 3px; }
+.line #moment::placeholder { color: var(--grey); opacity: 1; }
+.line:has(#moment:focus-visible) { outline: 1px solid var(--hair-strong); outline-offset: 3px; }
 .send { flex: none; display: grid; place-items: center; width: 3rem; height: 3rem; margin-right: 0.25rem; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--grey); cursor: pointer; transition: color 0.4s var(--ease), transform 0.4s var(--ease); }
 .send:hover { color: var(--ink); transform: translateX(2px); }
 .send:active { transform: translateX(4px); }
@@ -188,13 +187,10 @@ body.is-reading #labels { opacity: 0; }
   .label { font-size: 0.9375rem; max-width: 10em; }
   .note { left: 1rem; right: 1rem; bottom: calc(env(safe-area-inset-bottom, 0px) + 0.6rem); max-width: none; font-size: 0.75rem; text-align: center; text-wrap: balance; }
   #field { opacity: 0.7; }
-  .share { height: calc(var(--moment-text-height, 2.8rem) + 4.75rem); }
-  .line { display: grid; grid-template-columns: minmax(0, 1fr) repeat(3, 2.75rem); grid-template-rows: var(--moment-text-height, 2.8rem) 2.75rem; padding: 1.125rem 1.5rem 0.875rem; }
-  .line #moment { grid-column: 1 / -1; width: 100%; padding: 0; font-size: 1rem; line-height: 1.4; white-space: pre-wrap; overflow-wrap: anywhere; }
-  .line #moment-voice { grid-column: 2; }
-  .line #moment-photo { grid-column: 3; }
-  .line #send { grid-column: 4; }
-  .line .send { width: 2.75rem; margin-right: 0.1rem; }
+  .share { height: 3.75rem; }
+  .line { padding: 0 0.75rem; }
+  .line #moment { padding: 1.125rem 0.25rem 1rem 0; font-size: 1rem; line-height: 1.4; }
+  .line .send { width: 2.75rem; margin-right: 0; }
   .chrome { gap: 1.25rem; }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -224,7 +220,7 @@ body.is-reading #labels { opacity: 0; }
   <button type="button" class="sphere" id="sphere" aria-label="Share a moment that inspired you" aria-expanded="false" aria-controls="line"></button>
   <form class="line" id="line" inert novalidate>
     <label class="vh" for="moment">Name the moment that inspired you</label>
-    <textarea id="moment" name="moment" rows="1" wrap="off" maxlength="80" autocomplete="off" enterkeyhint="next" placeholder="Tell us about a moment that inspired you..." tabindex="-1"></textarea>
+    <input id="moment" name="moment" type="text" maxlength="80" autocomplete="off" enterkeyhint="next" placeholder="Tell us about a moment that inspired you..." tabindex="-1">
     <button type="button" class="line-tool" id="moment-voice" aria-label="Start voice input" aria-pressed="false" title="Voice input" tabindex="-1">
       <svg class="mic-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5.5 11.5v1a6.5 6.5 0 0 0 13 0v-1M12 19v3m-3 0h6"/></svg>
       <svg class="stop-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>
@@ -876,7 +872,7 @@ shareEl.addEventListener('keydown', (e) => {
   document.activeElement.blur();
   closeLine();
 });
-// A textarea lets the full invitation wrap on phones; Enter still continues.
+// Keep keyboard and mobile Continue behaviour consistent.
 input.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && !e.isComposing) {
     e.preventDefault();
@@ -1590,26 +1586,10 @@ syncMotion();
 
 /* boot */
 const momentWidthMQ = matchMedia('(max-width: 46rem)');
-const momentMeasure = document.createElement('div');
-momentMeasure.className = 'moment-measure';
-momentMeasure.setAttribute('aria-hidden', 'true');
-shareEl.append(momentMeasure);
 function syncMomentWrapping() {
-  input.wrap = momentWidthMQ.matches ? 'soft' : 'off';
-  input.rows = momentWidthMQ.matches ? 2 : 1;
-  if (momentWidthMQ.matches) {
-    // Measure the actual invitation/draft so a single line leaves no empty row.
-    const style = getComputedStyle(input);
-    momentMeasure.style.font = style.font;
-    momentMeasure.style.letterSpacing = style.letterSpacing;
-    momentMeasure.style.width = input.getBoundingClientRect().width + 'px';
-    momentMeasure.textContent = input.value || input.placeholder;
-    const height = Math.ceil(momentMeasure.getBoundingClientRect().height);
-    shareEl.style.setProperty('--moment-text-height', height + 'px');
-  } else shareEl.style.removeProperty('--moment-text-height');
+  input.placeholder = momentWidthMQ.matches ? 'Share a moment…' : 'Tell us about a moment that inspired you...';
   sampleName();
 }
-input.addEventListener('input', syncMomentWrapping);
 momentWidthMQ.addEventListener('change', syncMomentWrapping);
 syncMomentWrapping();
 function resize() {
